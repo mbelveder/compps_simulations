@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "compps-simulations"
+version = "0.1.0"
+description = "A package to simulate spectra based on CompPS model to check if it is possible to get low photone indeces after fitting them with absorbed power law model"
+authors = ["Miсhael Belvedersky <mike.belveder@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^2.3.5"
+matplotlib = "^3.10.7"
+pandas = "^2.3.3"
+astropy = "^7.1.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
