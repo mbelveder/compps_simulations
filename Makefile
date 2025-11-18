@@ -31,6 +31,14 @@ help:
 	@echo "    RMF               - RMF filename (default: must be specified)"
 	@echo "    EXPOSURE          - Exposure time in seconds (default: 10000)"
 	@echo "    NORM              - Model normalization (default: 1.0)"
+	@echo "    ENERGY_MIN        - Minimum fit energy in keV (default: 0.2)"
+	@echo "    ENERGY_MAX        - Maximum fit energy in keV (default: 10.0)"
+	@echo "    STAT_METHOD       - Fit statistic: chi/cstat/pgstat (default: cstat)"
+	@echo ""
+	@echo "  Notes:"
+	@echo "    - Spectra are automatically grouped with ftgrouppha (groupscale=3)"
+	@echo "    - Bad channels are automatically ignored during fitting"
+	@echo "    - C-statistic (cstat) is used by default for low-count data"
 	@echo ""
 
 # Installation and setup
@@ -49,9 +57,12 @@ setup:
 # Variables that can be overridden
 ARF ?=
 RMF ?=
-EXPOSURE ?= 10000
+EXPOSURE ?= 100000
 NORM ?= 1.0
 SCENARIOS ?= --all
+ENERGY_MIN ?= 0.3
+ENERGY_MAX ?= 10.0
+STAT_METHOD ?= cstat
 
 # Check if ARF and RMF are set
 check-response:
@@ -69,7 +80,10 @@ run: check-response
 		--rmf $(RMF) \
 		$(SCENARIOS) \
 		--exposure $(EXPOSURE) \
-		--norm $(NORM)
+		--norm $(NORM) \
+		--energy-min $(ENERGY_MIN) \
+		--energy-max $(ENERGY_MAX) \
+		--stat-method $(STAT_METHOD)
 
 simulate: check-response
 	@echo "Running simulation only..."
@@ -83,7 +97,11 @@ simulate: check-response
 
 fit:
 	@echo "Fitting existing spectra..."
-	poetry run python scripts/run_simulation.py --fit-only
+	poetry run python scripts/run_simulation.py \
+		--fit-only \
+		--energy-min $(ENERGY_MIN) \
+		--energy-max $(ENERGY_MAX) \
+		--stat-method $(STAT_METHOD)
 
 analyze:
 	@echo "Analyzing existing results..."
@@ -124,6 +142,7 @@ clean:
 	rm -rf data/simulated/*.pha
 	rm -rf data/simulated/*.json
 	rm -rf data/results/*.json
+	rm -rf data/results/*.xcm
 	@echo "Cleaned simulated spectra and fit results."
 
 clean-plots:
@@ -142,7 +161,10 @@ example-basic: check-response
 		--rmf $(RMF) \
 		--scenarios basic_thermal \
 		--exposure $(EXPOSURE) \
-		--norm $(NORM)
+		--norm $(NORM) \
+		--energy-min $(ENERGY_MIN) \
+		--energy-max $(ENERGY_MAX) \
+		--stat-method $(STAT_METHOD)
 
 example-all: check-response
 	@echo "Running all scenarios..."
@@ -151,7 +173,10 @@ example-all: check-response
 		--rmf $(RMF) \
 		--all \
 		--exposure $(EXPOSURE) \
-		--norm $(NORM)
+		--norm $(NORM) \
+		--energy-min $(ENERGY_MIN) \
+		--energy-max $(ENERGY_MAX) \
+		--stat-method $(STAT_METHOD)
 
 # Show project status
 status:
@@ -161,10 +186,12 @@ status:
 	@ls -lh data/response/ 2>/dev/null || echo "  No files found"
 	@echo ""
 	@echo "Simulated spectra (data/simulated/):"
-	@find data/simulated/ -name "*.pha" 2>/dev/null | wc -l | xargs echo "  Number of spectra:"
+	@find data/simulated/ -name "*.pha" 2>/dev/null | wc -l | xargs echo "  Total spectra:"
+	@find data/simulated/ -name "*_grp.pha" 2>/dev/null | wc -l | xargs echo "  Grouped spectra:"
 	@echo ""
 	@echo "Fit results (data/results/):"
 	@find data/results/ -name "fit_*.json" 2>/dev/null | wc -l | xargs echo "  Number of fits:"
+	@find data/results/ -name "fit_*.xcm" 2>/dev/null | wc -l | xargs echo "  XSPEC sessions (.xcm):"
 	@echo ""
 	@echo "Plots (data/results/):"
 	@find data/results/ -name "*.png" 2>/dev/null | wc -l | xargs echo "  Number of plots:"

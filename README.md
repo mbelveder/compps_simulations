@@ -88,9 +88,13 @@ make run ARF=instrument.arf RMF=instrument.rmf
 
 This will:
 1. Simulate spectra for all scenarios in `config/parameters.py`
-2. Fit each spectrum with `tbabs*powerlaw`
-3. Analyze results and generate statistics
-4. Create summary plots
+2. Group spectra using `ftgrouppha` (min grouping with groupscale=3)
+3. Fit each grouped spectrum with `tbabs*powerlaw`
+4. Analyze results and generate statistics
+5. Create summary plots
+
+**Note:** The pipeline automatically groups spectra after generation using `ftgrouppha` from HEASOFT. 
+If `ftgrouppha` is not available, ungrouped spectra will be used for fitting.
 
 ### Defining Parameter Sets
 

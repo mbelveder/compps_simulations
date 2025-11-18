@@ -83,6 +83,10 @@ Examples:
     parser.add_argument('--energy-max', type=float, default=ENERGY_RANGE['max'],
                        help=f'Maximum energy for fitting (keV, default: {ENERGY_RANGE["max"]})')
 
+    parser.add_argument('--stat-method', type=str, default='cstat',
+                       choices=['chi', 'cstat', 'pgstat'],
+                       help='Fit statistic method (default: cstat)')
+
     parser.add_argument('--no-plots', action='store_true',
                        help='Skip plot generation')
 
@@ -154,7 +158,8 @@ Examples:
 
         fitter = SpectrumFitter(
             output_dir=args.results_dir,
-            energy_range=(args.energy_min, args.energy_max)
+            energy_range=(args.energy_min, args.energy_max),
+            stat_method=args.stat_method
         )
 
         # Find spectra to fit

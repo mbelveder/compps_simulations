@@ -7,6 +7,7 @@ the CompPS model and XSPEC's fakeit functionality.
 
 import os
 import json
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -53,6 +54,66 @@ class SpectrumSimulator:
 
         self.xspec = XspecSession()
         self.simulation_log = []
+
+    def group_spectrum(self,
+                      spectrum_file: str,
+                      background_file: Optional[str] = None,
+                      grouptype: str = "min",
+                      groupscale: int = 3) -> str:
+        """
+        Group spectrum using ftgrouppha.
+
+        Parameters
+        ----------
+        spectrum_file : str
+            Path to spectrum file to group
+        background_file : str, optional
+            Background file to associate
+        grouptype : str
+            Grouping type (default: 'min')
+        groupscale : int
+            Grouping scale (default: 3)
+
+        Returns
+        -------
+        str
+            Path to grouped spectrum file
+        """
+        spec_path = Path(spectrum_file)
+        grouped_file = spec_path.parent / f"{spec_path.stem}_grp{spec_path.suffix}"
+
+        # Build ftgrouppha command
+        cmd = [
+            "ftgrouppha",
+            f"infile={spectrum_file}",
+            f"outfile={grouped_file}",
+            f"grouptype={grouptype}",
+            f"groupscale={groupscale}",
+            "clobber=yes"
+        ]
+
+        # Add background file if specified
+        if background_file:
+            cmd.append(f"backfile={background_file}")
+
+        print(f"  Grouping spectrum with ftgrouppha...")
+        try:
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            print(f"  Grouped spectrum saved: {grouped_file}")
+            return str(grouped_file)
+        except subprocess.CalledProcessError as e:
+            print(f"  Warning: ftgrouppha failed: {e.stderr}")
+            print(f"  Continuing with ungrouped spectrum: {spectrum_file}")
+            return spectrum_file
+        except FileNotFoundError:
+            print(f"  Warning: ftgrouppha not found in PATH")
+            print(f"  Continuing with ungrouped spectrum: {spectrum_file}")
+            return spectrum_file
 
     def simulate_spectrum(self,
                          scenario_name: str,
@@ -106,11 +167,20 @@ class SpectrumSimulator:
             background=background
         )
 
+        # Group the spectrum for fitting
+        grouped_file = self.group_spectrum(
+            spectrum_file=str(output_file),
+            background_file=background,
+            grouptype="min",
+            groupscale=3
+        )
+
         # Save simulation metadata
         metadata = {
             'scenario_name': scenario_name,
             'timestamp': timestamp,
             'spectrum_file': str(output_file),
+            'grouped_spectrum_file': grouped_file,
             'arf_file': self.arf_file,
             'rmf_file': self.rmf_file,
             'exposure': exposure,
@@ -127,8 +197,8 @@ class SpectrumSimulator:
         # Add to simulation log
         self.simulation_log.append(metadata)
 
-        print(f"  Simulation complete: {output_file}")
-        return str(output_file)
+        print(f"  Simulation complete: {grouped_file}")
+        return grouped_file
 
     def simulate_multiple(self,
                          scenarios: Dict[str, Dict[str, float]],
@@ -224,14 +294,22 @@ def load_simulation_metadata(spectrum_file: str) -> Dict[str, Any]:
     Parameters
     ----------
     spectrum_file : str
-        Path to spectrum file
+        Path to spectrum file (can be grouped or ungrouped)
 
     Returns
     -------
     dict
         Simulation metadata
     """
-    metadata_file = Path(spectrum_file).with_suffix('.json')
+    spec_path = Path(spectrum_file)
+    
+    # If this is a grouped spectrum, look for the ungrouped metadata
+    if '_grp' in spec_path.stem:
+        # Remove _grp suffix to get original filename
+        original_stem = spec_path.stem.replace('_grp', '')
+        metadata_file = spec_path.parent / f"{original_stem}.json"
+    else:
+        metadata_file = spec_path.with_suffix('.json')
 
     if not metadata_file.exists():
         raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
@@ -243,7 +321,8 @@ def load_simulation_metadata(spectrum_file: str) -> Dict[str, Any]:
 
 
 def find_simulated_spectra(simulated_dir: str = "data/simulated",
-                           scenario_pattern: Optional[str] = None) -> List[str]:
+                           scenario_pattern: Optional[str] = None,
+                           prefer_grouped: bool = True) -> List[str]:
     """
     Find simulated spectrum files.
 
@@ -253,6 +332,8 @@ def find_simulated_spectra(simulated_dir: str = "data/simulated",
         Directory containing simulated spectra
     scenario_pattern : str, optional
         Pattern to match scenario names (e.g., "basic_*")
+    prefer_grouped : bool
+        If True, prefer grouped spectra over ungrouped (default: True)
 
     Returns
     -------
@@ -265,10 +346,18 @@ def find_simulated_spectra(simulated_dir: str = "data/simulated",
         return []
 
     if scenario_pattern:
-        pattern = f"sim_{scenario_pattern}.pha"
+        pattern = f"sim_{scenario_pattern}*.pha"
     else:
         pattern = "sim_*.pha"
 
     spectrum_files = sorted(simulated_path.glob(pattern))
+    
+    if prefer_grouped:
+        # Filter to prefer grouped files (_grp.pha)
+        # For each base spectrum, use grouped version if it exists
+        grouped_files = [f for f in spectrum_files if '_grp' in f.name]
+        if grouped_files:
+            return [str(f) for f in grouped_files]
+    
     return [str(f) for f in spectrum_files]
 

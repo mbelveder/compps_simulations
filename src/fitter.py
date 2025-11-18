@@ -19,7 +19,8 @@ class SpectrumFitter:
 
     def __init__(self,
                  output_dir: str = "data/results",
-                 energy_range: Tuple[float, float] = (0.3, 10.0)):
+                 energy_range: Tuple[float, float] = (0.2, 10.0),
+                 stat_method: str = "cstat"):
         """
         Initialize spectrum fitter.
 
@@ -29,11 +30,14 @@ class SpectrumFitter:
             Directory for fit results
         energy_range : tuple
             Energy range for fitting (min, max) in keV
+        stat_method : str
+            Fit statistic method (default: 'cstat' for C-statistic)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.energy_min, self.energy_max = energy_range
+        self.stat_method = stat_method
         self.xspec = XspecSession()
         self.fit_log = []
 
@@ -42,7 +46,7 @@ class SpectrumFitter:
                     nh_init: float = 0.01,
                     photon_index_init: float = 2.0,
                     norm_init: float = 1e-3,
-                    max_iterations: int = 100,
+                    max_iterations: int = 1000,
                     energy_range: Optional[Tuple[float, float]] = None) -> Dict[str, Any]:
         """
         Fit a single spectrum with absorbed powerlaw.
@@ -50,7 +54,7 @@ class SpectrumFitter:
         Parameters
         ----------
         spectrum_file : str
-            Path to spectrum file
+            Path to spectrum file (preferably grouped)
         nh_init : float
             Initial nH value (10^22 cm^-2)
         photon_index_init : float
@@ -58,7 +62,7 @@ class SpectrumFitter:
         norm_init : float
             Initial normalization
         max_iterations : int
-            Maximum fit iterations
+            Maximum fit iterations (default: 1000)
         energy_range : tuple, optional
             Override default energy range for fitting
 
@@ -73,61 +77,71 @@ class SpectrumFitter:
 
         print(f"Fitting spectrum: {spectrum_path.name}")
 
-        # Clear previous session
-        self.xspec.clear_session()
-
-        # Set up absorbed powerlaw model
-        model = self.xspec.setup_absorbed_powerlaw(
-            nh=nh_init,
-            photon_index=photon_index_init,
-            norm=norm_init
-        )
-
         # Set energy range for fitting
         if energy_range is None:
             energy_range = (self.energy_min, self.energy_max)
 
         try:
             import xspec
-            # Load spectrum and set energy range
+            
+            # Clear previous data and models
+            xspec.AllModels.clear()
+            xspec.AllData.clear()
+
+            # Load grouped spectrum (has all necessary file links in header)
             spectrum = xspec.Spectrum(spectrum_file)
+            print(f"  Loaded spectrum: {spectrum_path.name}")
+
+            # Set up absorbed powerlaw model (tbabs*powerlaw)
+            model = self.xspec.setup_absorbed_powerlaw(
+                nh=nh_init,
+                photon_index=photon_index_init,
+                norm=norm_init
+            )
+            print("  Model defined: tbabs*powerlaw")
+
+            # Ignore ranges outside specified range and bad channels
             spectrum.ignore(f"**-{energy_range[0]} {energy_range[1]}-**")
+            spectrum.ignore("bad")
+            emin, emax = energy_range
+            print(f"  Ignoring outside {emin}-{emax} keV and bad channels")
+
+            # Set fit parameters
+            xspec.Fit.nIterations = max_iterations
+            xspec.Fit.statMethod = self.stat_method
+            xspec.Fit.query = "yes"  # Non-interactive mode
+            print(f"  Settings: iterations={max_iterations}, "
+                  f"statistic={self.stat_method}")
 
             # Perform fit
-            results = self.xspec.fit_spectrum(
-                spectrum_file=spectrum_file,
-                model=model,
-                max_iterations=max_iterations
-            )
+            print("  Performing fit...")
+            xspec.Fit.perform()
+            print("  Fit complete")
 
-            # Calculate flux
-            try:
-                flux, flux_err = self.xspec.get_model_flux(
-                    energy_min=energy_range[0],
-                    energy_max=energy_range[1]
-                )
-                results['flux'] = flux
-                results['flux_error'] = flux_err
-            except Exception as e:
-                print(f"  Warning: Flux calculation failed: {e}")
-                results['flux'] = None
-                results['flux_error'] = None
+            # Save XSPEC session to .xcm file
+            xcm_file = self._save_xspec_session(spectrum_file)
+            print(f"  Saved XSPEC session: {Path(xcm_file).name}")
 
-            # Add metadata
-            results['spectrum_file'] = str(spectrum_file)
-            results['energy_range'] = energy_range
-            results['fit_status'] = 'success'
-            results['timestamp'] = datetime.now().isoformat()
+            # Extract fit results
+            results = self._extract_fit_results(model, spectrum_file, energy_range)
+            results['xcm_file'] = xcm_file
 
             # Print summary
-            print(f"  Chi-squared: {results['chi_squared']:.2f}")
-            print(f"  Reduced chi-squared: {results['reduced_chi_squared']:.3f}")
-            if 'tbabs.nH' in results['parameters']:
-                print(f"  nH: {results['parameters']['tbabs.nH']:.4f} x 10^22 cm^-2")
+            stat_name = ("C-statistic" if self.stat_method == "cstat"
+                        else "Chi-squared")
+            print(f"  {stat_name}: {results['statistic']:.2f}")
+            if results.get('reduced_chi_squared') is not None:
+                red_stat = results['reduced_chi_squared']
+                print(f"  Reduced statistic: {red_stat:.3f}")
+            if 'TBabs.nH' in results['parameters']:
+                nh = results['parameters']['TBabs.nH']
+                print(f"  nH: {nh:.4f} x 10^22 cm^-2")
             if 'powerlaw.PhoIndex' in results['parameters']:
-                print(f"  Photon Index: {results['parameters']['powerlaw.PhoIndex']:.3f}")
+                gamma = results['parameters']['powerlaw.PhoIndex']
+                print(f"  Photon Index: {gamma:.3f}")
             if 'powerlaw.norm' in results['parameters']:
-                print(f"  Normalization: {results['parameters']['powerlaw.norm']:.3e}")
+                norm = results['parameters']['powerlaw.norm']
+                print(f"  Normalization: {norm:.3e}")
 
         except Exception as e:
             print(f"  ERROR: Fit failed: {e}")
@@ -142,6 +156,99 @@ class SpectrumFitter:
         self.fit_log.append(results)
 
         return results
+
+    def _extract_fit_results(self, model, spectrum_file: str,
+                            energy_range: Tuple[float, float]) -> Dict[str, Any]:
+        """
+        Extract fit results from XSPEC model.
+
+        Parameters
+        ----------
+        model : xspec.Model
+            Fitted model
+        spectrum_file : str
+            Path to spectrum file
+        energy_range : tuple
+            Energy range used for fitting
+
+        Returns
+        -------
+        dict
+            Fit results dictionary
+        """
+        import xspec
+
+        results = {
+            'statistic': xspec.Fit.statistic,
+            'dof': xspec.Fit.dof,
+            'stat_method': self.stat_method,
+            'parameters': {},
+            'errors': {}
+        }
+
+        # Calculate reduced statistic
+        if xspec.Fit.dof > 0:
+            results['reduced_chi_squared'] = xspec.Fit.statistic / xspec.Fit.dof
+        else:
+            results['reduced_chi_squared'] = None
+
+        # Extract parameter values and errors
+        for comp in model.componentNames:
+            component = getattr(model, comp)
+            for param_name in component.parameterNames:
+                param = getattr(component, param_name)
+                full_name = f"{comp}.{param_name}"
+                results['parameters'][full_name] = param.values[0]
+
+                # Error is stored as (lower, upper) bounds
+                if hasattr(param, 'error'):
+                    results['errors'][full_name] = param.error
+
+        # Calculate flux
+        try:
+            flux, flux_err = self.xspec.get_model_flux(
+                energy_min=energy_range[0],
+                energy_max=energy_range[1]
+            )
+            results['flux'] = flux
+            results['flux_error'] = flux_err
+        except Exception as e:
+            print(f"  Warning: Flux calculation failed: {e}")
+            results['flux'] = None
+            results['flux_error'] = None
+
+        # Add metadata
+        results['spectrum_file'] = str(spectrum_file)
+        results['energy_range'] = energy_range
+        results['fit_status'] = 'success'
+        results['timestamp'] = datetime.now().isoformat()
+
+        return results
+
+    def _save_xspec_session(self, spectrum_file: str) -> str:
+        """
+        Save XSPEC session to .xcm file.
+
+        Parameters
+        ----------
+        spectrum_file : str
+            Path to spectrum file (used to generate xcm filename)
+
+        Returns
+        -------
+        str
+            Path to saved .xcm file
+        """
+        import xspec
+
+        spectrum_path = Path(spectrum_file)
+        xcm_filename = f"fit_{spectrum_path.stem}.xcm"
+        xcm_file = self.output_dir / xcm_filename
+
+        # Save the current XSPEC session
+        xspec.Xset.save(str(xcm_file), info='a')
+
+        return str(xcm_file)
 
     def fit_multiple(self,
                     spectrum_files: List[str],
@@ -248,7 +355,7 @@ class SpectrumFitter:
                 'success_rate': 0.0
             }
 
-        # Extract parameter values
+        # Extract parameter values (handle both tbabs and TBabs)
         photon_indices = [
             f['parameters'].get('powerlaw.PhoIndex')
             for f in successful_fits
@@ -256,9 +363,12 @@ class SpectrumFitter:
         ]
 
         nh_values = [
-            f['parameters'].get('tbabs.nH')
+            f['parameters'].get('TBabs.nH', f['parameters'].get('tbabs.nH'))
             for f in successful_fits
-            if 'parameters' in f and 'tbabs.nH' in f['parameters']
+            if 'parameters' in f and (
+                'TBabs.nH' in f['parameters'] or
+                'tbabs.nH' in f['parameters']
+            )
         ]
 
         chi_squared = [
