@@ -16,6 +16,7 @@ help:
 	@echo "    make fit          - Only fit existing spectra"
 	@echo "    make analyze      - Only analyze existing results"
 	@echo "    make plot         - Only generate plots"
+	@echo "    make doc-params   - Generate parameter documentation (Markdown)"
 	@echo ""
 	@echo "  Development:"
 	@echo "    make lint         - Run linters on source code"
@@ -55,8 +56,8 @@ setup:
 
 # Pipeline execution targets
 # Variables that can be overridden
-ARF ?=
-RMF ?=
+ARF ?= src_5359_020_ARF_00001.fits.gz
+RMF ?= src_5359_020_RMF_00001.fits.gz
 EXPOSURE ?= 100000
 NORM ?= 1.0
 SCENARIOS ?= --all
@@ -110,6 +111,10 @@ analyze:
 plot:
 	@echo "Generating plots from existing results..."
 	poetry run python scripts/run_simulation.py --analyze-only
+
+doc-params:
+	@echo "Generating parameter documentation..."
+	poetry run python scripts/generate_parameter_doc.py
 
 # Development targets
 lint:

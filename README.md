@@ -96,6 +96,25 @@ This will:
 **Note:** The pipeline automatically groups spectra after generation using `ftgrouppha` from HEASOFT. 
 If `ftgrouppha` is not available, ungrouped spectra will be used for fitting.
 
+### Parameter Sets Documentation
+
+The project includes **16 different CompPS parameter configurations** organized into three categories:
+- **Physics-motivated AGN scenarios** (8 sets): Based on observational constraints from literature (Ricci+ 2018, Balokovic+ 2017)
+- **Temperature-optical depth grid** (5 sets): Systematic exploration of kTe-τ anticorrelation
+- **Reflection strength variations** (3 sets): Based on reflection-luminosity anticorrelation
+
+Generate human-readable comparison documentation:
+
+```bash
+make doc-params
+```
+
+This creates `config/parameter_sets.md` with:
+- Side-by-side comparison tables for all scenarios
+- Detailed parameter descriptions for each set
+- Quick reference with observational ranges
+- Key physical relationships (kTe-τ anticorrelation, reflection-luminosity trends)
+
 ### Defining Parameter Sets
 
 Edit `config/parameters.py` to define your own CompPS parameter combinations. Example:

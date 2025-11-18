@@ -227,7 +227,7 @@ class SpectrumFitter:
 
     def _save_xspec_session(self, spectrum_file: str) -> str:
         """
-        Save XSPEC session to .xcm file.
+        Save XSPEC session to .xcm file with additional commands.
 
         Parameters
         ----------
@@ -247,6 +247,18 @@ class SpectrumFitter:
 
         # Save the current XSPEC session
         xspec.Xset.save(str(xcm_file), info='a')
+
+        # Append additional commands to make the session interactive-ready
+        with open(xcm_file, 'a') as f:
+            f.write('\n')
+            f.write('# Additional commands for interactive use\n')
+            f.write('ign bad\n')
+            f.write('ign **-0.3 9.0-**\n')
+            f.write('setpl en\n')
+            f.write('fit\n')
+            f.write('cpd /xw\n')
+            f.write('setplot r 10 10\n')
+            f.write('pl eeufs\n')
 
         return str(xcm_file)
 
