@@ -50,6 +50,8 @@ data/results/*.txt
 data/results/*.csv
 data/erosita
 
+config/*.html
+
 # Keep directory structure but ignore contents
 !data/simulated/.gitkeep
 !data/results/.gitkeep

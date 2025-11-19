@@ -88,6 +88,29 @@ class ResultsAnalyzer:
                 for param, value in fit_result.get('parameters', {}).items():
                     record[f'fit_{param}'] = value
 
+                # Add fit parameter errors
+                for param, error in fit_result.get('errors', {}).items():
+                    # For PhoIndex, extract bounds and calculate deviations
+                    is_phoindex = param == 'powerlaw.PhoIndex'
+                    is_list_tuple = isinstance(error, (list, tuple))
+                    if is_phoindex and is_list_tuple and len(error) == 2:
+                        # Store bounds (absolute parameter values from XSPEC)
+                        record[f'fit_{param}_error_lower_bound'] = error[0]
+                        record[f'fit_{param}_error_upper_bound'] = error[1]
+                        # Calculate error deviations for matplotlib errorbar
+                        fitted_value = record[f'fit_{param}']
+                        # nerr = fitted_value - lower_bound (positive)
+                        record[f'fit_{param}_error_neg'] = (
+                            fitted_value - error[0]
+                        )
+                        # perr = upper_bound - fitted_value (positive)
+                        record[f'fit_{param}_error_pos'] = (
+                            error[1] - fitted_value
+                        )
+                    # For other parameters, store as-is
+                    else:
+                        record[f'fit_{param}_error'] = error
+
                 # Add fit statistics
                 record['chi_squared'] = fit_result.get('chi_squared')
                 record['dof'] = fit_result.get('dof')
@@ -140,13 +163,39 @@ class ResultsAnalyzer:
                 if col in scenario_df.columns:
                     scenario_stats[f'compps_{param}'] = scenario_df[col].iloc[0]
 
-            # Fitted powerlaw parameters
+            # Fitted powerlaw photon index statistics
+            # For N>1 spectra: distribution statistics (mean, std, range)
+            # For N=1 spectrum: mean/min/max = fitted value, std = NaN
             if 'fit_powerlaw.PhoIndex' in scenario_df.columns:
                 photon_indices = scenario_df['fit_powerlaw.PhoIndex'].dropna()
                 scenario_stats['photon_index_mean'] = photon_indices.mean()
                 scenario_stats['photon_index_std'] = photon_indices.std()
                 scenario_stats['photon_index_min'] = photon_indices.min()
                 scenario_stats['photon_index_max'] = photon_indices.max()
+
+                # Asymmetric errors from PyXspec (per-spectrum fit uncertainty)
+                # Error deviations from xspec.Fit.error("2.706 2")
+                # representing 90% confidence intervals on each fit
+                # These are meaningful even for single spectra (N=1)
+                if 'fit_powerlaw.PhoIndex_error_neg' in scenario_df.columns:
+                    neg_errs = scenario_df[
+                        'fit_powerlaw.PhoIndex_error_neg'
+                    ].dropna()
+                    if len(neg_errs) > 0:
+                        # Mean negative error deviation
+                        scenario_stats['photon_index_error_neg_mean'] = (
+                            neg_errs.mean()
+                        )
+
+                if 'fit_powerlaw.PhoIndex_error_pos' in scenario_df.columns:
+                    pos_errs = scenario_df[
+                        'fit_powerlaw.PhoIndex_error_pos'
+                    ].dropna()
+                    if len(pos_errs) > 0:
+                        # Mean positive error deviation
+                        scenario_stats['photon_index_error_pos_mean'] = (
+                            pos_errs.mean()
+                        )
 
             if 'fit_tbabs.nH' in scenario_df.columns:
                 nh_values = scenario_df['fit_tbabs.nH'].dropna()
@@ -294,10 +343,42 @@ class ResultsAnalyzer:
                 report_lines.append(f"  Input tau: {row['compps_tau']:.2f}")
 
             if 'photon_index_mean' in row and not np.isnan(row['photon_index_mean']):
-                report_lines.append(
-                    f"  Fitted Photon Index: {row['photon_index_mean']:.3f} "
-                    f"± {row['photon_index_std']:.3f}"
+                # Build photon index display string
+                has_neg_err = (
+                    'photon_index_error_neg_mean' in row and
+                    not np.isnan(row['photon_index_error_neg_mean'])
                 )
+                has_pos_err = (
+                    'photon_index_error_pos_mean' in row and
+                    not np.isnan(row['photon_index_error_pos_mean'])
+                )
+
+                # For single spectrum (N=1): show fit value + PyXspec errors
+                if row['n_spectra'] == 1 and has_neg_err and has_pos_err:
+                    neg_err = row['photon_index_error_neg_mean']
+                    pos_err = row['photon_index_error_pos_mean']
+                    photon_idx_str = (
+                        f"  Fitted Photon Index: "
+                        f"{row['photon_index_mean']:.3f} "
+                        f"(90% CI: -{neg_err:.3f}/+{pos_err:.3f})"
+                    )
+                # For multiple spectra (N>1): show distribution ± std
+                # and optionally PyXspec errors
+                else:
+                    photon_idx_str = (
+                        f"  Fitted Photon Index: "
+                        f"{row['photon_index_mean']:.3f}"
+                    )
+                    if not np.isnan(row['photon_index_std']):
+                        photon_idx_str += f" ± {row['photon_index_std']:.3f}"
+                    if has_neg_err and has_pos_err:
+                        neg_err = row['photon_index_error_neg_mean']
+                        pos_err = row['photon_index_error_pos_mean']
+                        photon_idx_str += (
+                            f" (avg 90% CI: -{neg_err:.3f}/"
+                            f"+{pos_err:.3f})"
+                        )
+                report_lines.append(photon_idx_str)
 
             if 'nH_mean' in row and not np.isnan(row['nH_mean']):
                 report_lines.append(

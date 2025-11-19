@@ -1,6 +1,6 @@
 # Makefile for CompPS Simulations Project
 
-.PHONY: help install setup clean run simulate fit analyze plot test lint format
+.PHONY: help install setup clean run simulate fit analyze plot plot-grid test lint format
 
 # Default target
 help:
@@ -16,6 +16,7 @@ help:
 	@echo "    make fit          - Only fit existing spectra"
 	@echo "    make analyze      - Only analyze existing results"
 	@echo "    make plot         - Only generate plots"
+	@echo "    make plot-grid    - Generate XCM spectra grid plot"
 	@echo "    make doc-params   - Generate parameter documentation (Markdown)"
 	@echo ""
 	@echo "  Development:"
@@ -111,6 +112,10 @@ analyze:
 plot:
 	@echo "Generating plots from existing results..."
 	poetry run python scripts/run_simulation.py --analyze-only
+
+plot-grid:
+	@echo "Generating XCM spectra grid plot..."
+	poetry run python scripts/plot_xcm_grid.py
 
 doc-params:
 	@echo "Generating parameter documentation..."

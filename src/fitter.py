@@ -101,8 +101,8 @@ class SpectrumFitter:
             print("  Model defined: tbabs*powerlaw")
 
             # Ignore ranges outside specified range and bad channels
-            spectrum.ignore(f"**-{energy_range[0]} {energy_range[1]}-**")
-            spectrum.ignore("bad")
+            xspec.AllData.ignore(f"**-{energy_range[0]} {energy_range[1]}-**")
+            xspec.AllData.ignore("bad")
             emin, emax = energy_range
             print(f"  Ignoring outside {emin}-{emax} keV and bad channels")
 
@@ -117,6 +117,14 @@ class SpectrumFitter:
             print("  Performing fit...")
             xspec.Fit.perform()
             print("  Fit complete")
+
+            # Calculate errors for PhoIndex using 90% confidence level
+            try:
+                # 2.706 = 90% confidence, 2 = PhoIndex parameter
+                xspec.Fit.error("2.706 2")
+                print("  PhoIndex errors calculated")
+            except Exception as e:
+                print(f"  Warning: PhoIndex error calculation failed: {e}")
 
             # Save XSPEC session to .xcm file
             xcm_file = self._save_xspec_session(spectrum_file)
@@ -200,8 +208,15 @@ class SpectrumFitter:
                 full_name = f"{comp}.{param_name}"
                 results['parameters'][full_name] = param.values[0]
 
-                # Error is stored as (lower, upper) bounds
-                if hasattr(param, 'error'):
+                # For PhoIndex, extract errors using specific method
+                if comp == 'powerlaw' and param_name == 'PhoIndex':
+                    if hasattr(param, 'error') and param.error is not None:
+                        # Error bounds: [lower, upper]
+                        results['errors'][full_name] = [
+                            param.error[0], param.error[1]
+                        ]
+                # For other parameters, use generic error extraction
+                elif hasattr(param, 'error'):
                     results['errors'][full_name] = param.error
 
         # Calculate flux
@@ -252,13 +267,15 @@ class SpectrumFitter:
         with open(xcm_file, 'a') as f:
             f.write('\n')
             f.write('# Additional commands for interactive use\n')
-            f.write('ign bad\n')
-            f.write('ign **-0.3 9.0-**\n')
-            f.write('setpl en\n')
-            f.write('fit\n')
-            f.write('cpd /xw\n')
-            f.write('setplot r 10 10\n')
-            f.write('pl eeufs\n')
+            f.write('ignore bad\n')
+            f.write('ignore **-0.3 9.0-**\n')
+            # f.write('fit\n')
+            # f.write('err 2\n')
+            # f.write('setpl en\n')
+            # f.write('fit\n')
+            # f.write('cpd /xw\n')
+            # f.write('setplot r 10 10\n')
+            # f.write('pl eeufs\n')
 
         return str(xcm_file)
 

@@ -45,6 +45,19 @@ class SpectrumPlotter:
         plt.rcParams['figure.figsize'] = figsize
         plt.rcParams['font.size'] = 10
 
+    @staticmethod
+    def _get_scenario_number_map() -> Dict[str, int]:
+        """
+        Get consistent scenario numbering based on COMPPS_PARAMS order.
+
+        Returns
+        -------
+        dict
+            Mapping of scenario names to numbers (1-indexed)
+        """
+        from config.parameters import COMPPS_PARAMS
+        return {name: idx + 1 for idx, name in enumerate(COMPPS_PARAMS.keys())}
+
     def plot_spectrum(self,
                      spectrum_file: str,
                      title: Optional[str] = None,
@@ -315,16 +328,85 @@ class SpectrumPlotter:
         ax1.legend()
         ax1.grid(True, alpha=0.3)
 
-        # Box plot by scenario
+        # Error bar plot by scenario with asymmetric errors
         scenarios = df['scenario_name'].unique()
-        scenario_data = [df[df['scenario_name'] == s]['fit_powerlaw.PhoIndex'].dropna()
-                        for s in scenarios]
 
-        ax2.boxplot(scenario_data, labels=scenarios)
+        # Get scenario numbering for consistent labels
+        scenario_map = self._get_scenario_number_map()
+
+        # Check if asymmetric error columns exist (new deviation format)
+        has_errors = (
+            'fit_powerlaw.PhoIndex_error_neg' in df.columns and
+            'fit_powerlaw.PhoIndex_error_pos' in df.columns
+        )
+
+        x_positions = []
+        y_values = []
+        y_errors_neg = []
+        y_errors_pos = []
+        scenario_labels = []
+
+        for i, scenario in enumerate(scenarios):
+            scenario_df = df[df['scenario_name'] == scenario]
+            pho_indices = scenario_df['fit_powerlaw.PhoIndex'].dropna()
+
+            if len(pho_indices) == 0:
+                continue
+
+            n_spectra = len(scenario_df)
+            # For multiple spectra per scenario, add small offsets
+            # For single spectrum (N=1), no offset needed
+            offset_increment = 0.08 if n_spectra > 1 else 0
+
+            # For each spectrum in the scenario, plot with error bars
+            for j, (idx, row) in enumerate(scenario_df.iterrows()):
+                if pd.isna(row['fit_powerlaw.PhoIndex']):
+                    continue
+
+                # Center multiple points around integer position
+                if n_spectra > 1:
+                    offset = (j - (n_spectra - 1) / 2) * offset_increment
+                else:
+                    offset = 0
+
+                x_positions.append(i + 1 + offset)
+                y_values.append(row['fit_powerlaw.PhoIndex'])
+
+                # Get asymmetric error deviations if available
+                if has_errors:
+                    nerr = row.get('fit_powerlaw.PhoIndex_error_neg', 0)
+                    perr = row.get('fit_powerlaw.PhoIndex_error_pos', 0)
+                    y_errors_neg.append(nerr if not pd.isna(nerr) else 0)
+                    y_errors_pos.append(perr if not pd.isna(perr) else 0)
+                else:
+                    y_errors_neg.append(0)
+                    y_errors_pos.append(0)
+
+            scenario_labels.append(
+                f"{scenario_map.get(scenario, '?')}. {scenario}"
+            )
+
+        # Plot with asymmetric error bars
+        if has_errors:
+            ax2.errorbar(
+                x_positions, y_values,
+                yerr=[y_errors_neg, y_errors_pos],
+                fmt='o', markersize=6, capsize=4, capthick=2,
+                label='90% CI'
+            )
+            title_suffix = ' (with 90% CI)'
+        else:
+            ax2.scatter(x_positions, y_values, s=50)
+            title_suffix = ''
+
         ax2.set_xlabel('Scenario', fontsize=12)
         ax2.set_ylabel('Photon Index (Γ)', fontsize=12)
-        ax2.set_title('Photon Index by Scenario', fontsize=14)
+        ax2.set_title(f'Photon Index by Scenario{title_suffix}', fontsize=14)
+        ax2.set_xticks(range(1, len(scenarios) + 1))
+        ax2.set_xticklabels(scenario_labels)
         ax2.grid(True, alpha=0.3, axis='y')
+        if has_errors:
+            ax2.legend()
         plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
 
         plt.tight_layout()
