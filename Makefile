@@ -163,6 +163,9 @@ clean-plots:
 clean-all: clean clean-plots
 	@echo "All generated files removed."
 
+clean-run: clean-all run
+	@echo "All generated files removed and the whole pipline runned."
+
 # Example targets for specific use cases
 example-basic: check-response
 	@echo "Running basic thermal scenario..."

@@ -21,8 +21,8 @@ class SpectrumPlotter:
 
     def __init__(self,
                  output_dir: str = "data/results",
-                 figsize: Tuple[int, int] = (10, 6),
-                 dpi: int = 100):
+                 figsize: Tuple[int, int] = (10, 8),
+                 dpi: int = 300):
         """
         Initialize plotter.
 
@@ -95,7 +95,7 @@ class SpectrumPlotter:
                 # Use channel as proxy
                 energy = channel
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.figsize,
+        fig, (ax1, ax) = plt.subplots(2, 1, figsize=self.figsize,
                                        gridspec_kw={'height_ratios': [3, 1]})
 
         # Plot counts spectrum
@@ -110,11 +110,11 @@ class SpectrumPlotter:
             ax1.set_title(f'Spectrum: {Path(spectrum_file).name}', fontsize=14)
 
         # Plot counts per energy bin (rate-like)
-        ax2.step(energy, counts, where='mid', linewidth=1.5, color='C1')
-        ax2.set_xlabel('Energy (keV)', fontsize=12)
-        ax2.set_ylabel('Counts', fontsize=12)
-        ax2.set_yscale('log')
-        ax2.grid(True, alpha=0.3)
+        ax.step(energy, counts, where='mid', linewidth=1.5, color='C1')
+        ax.set_xlabel('Energy (keV)', fontsize=12)
+        ax.set_ylabel('Counts', fontsize=12)
+        ax.set_yscale('log')
+        ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
 
@@ -312,27 +312,17 @@ class SpectrumPlotter:
         plt.Figure
             Figure object
         """
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-        photon_indices = df['fit_powerlaw.PhoIndex'].dropna()
-
-        # Histogram
-        ax1.hist(photon_indices, bins=20, alpha=0.7, edgecolor='black')
-        ax1.axvline(photon_indices.mean(), color='r', linestyle='--',
-                   linewidth=2, label=f'Mean: {photon_indices.mean():.3f}')
-        ax1.axvline(photon_indices.median(), color='g', linestyle='--',
-                   linewidth=2, label=f'Median: {photon_indices.median():.3f}')
-        ax1.set_xlabel('Photon Index (Γ)', fontsize=12)
-        ax1.set_ylabel('Count', fontsize=12)
-        ax1.set_title('Distribution of Fitted Photon Indices', fontsize=14)
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+        fig, ax = plt.subplots(figsize=(8, 8))
 
         # Error bar plot by scenario with asymmetric errors
-        scenarios = df['scenario_name'].unique()
-
-        # Get scenario numbering for consistent labels
+        # Get scenario numbering for consistent labels and sorting
         scenario_map = self._get_scenario_number_map()
+
+        # Sort scenarios by their number to ensure consistent order
+        available_scenarios = df['scenario_name'].unique()
+        scenarios = [
+            s for s in scenario_map.keys() if s in available_scenarios
+        ]
 
         # Check if asymmetric error columns exist (new deviation format)
         has_errors = (
@@ -340,10 +330,10 @@ class SpectrumPlotter:
             'fit_powerlaw.PhoIndex_error_pos' in df.columns
         )
 
-        x_positions = []
-        y_values = []
-        y_errors_neg = []
-        y_errors_pos = []
+        y_positions = []
+        gamma_values = []
+        gamma_errors_neg = []
+        gamma_errors_pos = []
         scenario_labels = []
 
         for i, scenario in enumerate(scenarios):
@@ -359,7 +349,7 @@ class SpectrumPlotter:
             offset_increment = 0.08 if n_spectra > 1 else 0
 
             # For each spectrum in the scenario, plot with error bars
-            for j, (idx, row) in enumerate(scenario_df.iterrows()):
+            for j, (_, row) in enumerate(scenario_df.iterrows()):
                 if pd.isna(row['fit_powerlaw.PhoIndex']):
                     continue
 
@@ -369,18 +359,18 @@ class SpectrumPlotter:
                 else:
                     offset = 0
 
-                x_positions.append(i + 1 + offset)
-                y_values.append(row['fit_powerlaw.PhoIndex'])
+                y_positions.append(i + 1 + offset)
+                gamma_values.append(row['fit_powerlaw.PhoIndex'])
 
                 # Get asymmetric error deviations if available
                 if has_errors:
                     nerr = row.get('fit_powerlaw.PhoIndex_error_neg', 0)
                     perr = row.get('fit_powerlaw.PhoIndex_error_pos', 0)
-                    y_errors_neg.append(nerr if not pd.isna(nerr) else 0)
-                    y_errors_pos.append(perr if not pd.isna(perr) else 0)
+                    gamma_errors_neg.append(nerr if not pd.isna(nerr) else 0)
+                    gamma_errors_pos.append(perr if not pd.isna(perr) else 0)
                 else:
-                    y_errors_neg.append(0)
-                    y_errors_pos.append(0)
+                    gamma_errors_neg.append(0)
+                    gamma_errors_pos.append(0)
 
             scenario_labels.append(
                 f"{scenario_map.get(scenario, '?')}. {scenario}"
@@ -388,26 +378,27 @@ class SpectrumPlotter:
 
         # Plot with asymmetric error bars
         if has_errors:
-            ax2.errorbar(
-                x_positions, y_values,
-                yerr=[y_errors_neg, y_errors_pos],
+            ax.errorbar(
+                gamma_values, y_positions,
+                xerr=[gamma_errors_neg, gamma_errors_pos],
                 fmt='o', markersize=6, capsize=4, capthick=2,
                 label='90% CI'
             )
             title_suffix = ' (with 90% CI)'
         else:
-            ax2.scatter(x_positions, y_values, s=50)
+            ax.scatter(gamma_values, y_positions, s=50)
             title_suffix = ''
 
-        ax2.set_xlabel('Scenario', fontsize=12)
-        ax2.set_ylabel('Photon Index (Γ)', fontsize=12)
-        ax2.set_title(f'Photon Index by Scenario{title_suffix}', fontsize=14)
-        ax2.set_xticks(range(1, len(scenarios) + 1))
-        ax2.set_xticklabels(scenario_labels)
-        ax2.grid(True, alpha=0.3, axis='y')
+        ax.set_xlabel('Photon Index (Γ)', fontsize=12)
+        ax.set_ylabel('Scenario', fontsize=12)
+        ax.set_title(f'Photon Index by Scenario{title_suffix}', fontsize=14)
+        ax.set_yticks(range(1, len(scenarios) + 1))
+        ax.set_yticklabels(scenario_labels)
+        ax.grid(True, alpha=0.3, axis='x')
+        ax.axvline(1.3, ls='--', color='k', alpha=.4)
+        ax.set_xlim(0.4, 4.4)
         if has_errors:
-            ax2.legend()
-        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+            ax.legend()
 
         plt.tight_layout()
 
@@ -513,7 +504,7 @@ class SpectrumPlotter:
 
         # Chi-squared distribution
         if 'reduced_chi_squared' in df.columns:
-            fig, ax = plt.subplots(figsize=self.figsize)
+            _, ax = plt.subplots(figsize=self.figsize)
             chi2 = df['reduced_chi_squared'].dropna()
             ax.hist(chi2, bins=20, alpha=0.7, edgecolor='black')
             ax.axvline(1.0, color='r', linestyle='--', linewidth=2,

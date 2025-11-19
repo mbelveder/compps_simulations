@@ -117,6 +117,9 @@ class SpectrumFitter:
             print("  Performing fit...")
             xspec.Fit.perform()
             print("  Fit complete")
+            print("  Performing steppar...")
+            xspec.Fit.steppar('nolog 2 0 5 50')
+            print("  Steppar complete...")
 
             # Calculate errors for PhoIndex using 90% confidence level
             try:
