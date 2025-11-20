@@ -59,7 +59,7 @@ setup:
 # Variables that can be overridden
 ARF ?= src_5359_020_ARF_00001.fits.gz
 RMF ?= src_5359_020_RMF_00001.fits.gz
-EXPOSURE ?= 100000
+EXPOSURE ?= 1000000
 NORM ?= 1.0
 SCENARIOS ?= --all
 ENERGY_MIN ?= 0.3

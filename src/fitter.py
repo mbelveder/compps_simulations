@@ -83,7 +83,7 @@ class SpectrumFitter:
 
         try:
             import xspec
-            
+
             # Clear previous data and models
             xspec.AllModels.clear()
             xspec.AllData.clear()

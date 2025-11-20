@@ -14,6 +14,7 @@ import pandas as pd
 from astropy.io import fits
 
 from .analysis import ResultsAnalyzer
+from config.parameters import get_scenario_number_map
 
 
 class SpectrumPlotter:
@@ -46,17 +47,38 @@ class SpectrumPlotter:
         plt.rcParams['font.size'] = 10
 
     @staticmethod
-    def _get_scenario_number_map() -> Dict[str, int]:
+    def _get_varying_parameters(scenarios: List[str]) -> List[str]:
         """
-        Get consistent scenario numbering based on COMPPS_PARAMS order.
+        Identify CompPS parameters that vary across scenarios.
+
+        Parameters
+        ----------
+        scenarios : list of str
+            List of scenario names
 
         Returns
         -------
-        dict
-            Mapping of scenario names to numbers (1-indexed)
+        list of str
+            Parameter names that have different values across scenarios
         """
         from config.parameters import COMPPS_PARAMS
-        return {name: idx + 1 for idx, name in enumerate(COMPPS_PARAMS.keys())}
+
+        if len(scenarios) <= 1:
+            return []
+
+        # Get all parameter names from first scenario
+        first_scenario = scenarios[0]
+        all_params = list(COMPPS_PARAMS[first_scenario].keys())
+
+        varying_params = []
+        for param in all_params:
+            # Get all values for this parameter
+            values = [COMPPS_PARAMS[s][param] for s in scenarios]
+            # Check if any value differs
+            if len(set(values)) > 1:
+                varying_params.append(param)
+
+        return varying_params
 
     def plot_spectrum(self,
                      spectrum_file: str,
@@ -312,11 +334,17 @@ class SpectrumPlotter:
         plt.Figure
             Figure object
         """
-        fig, ax = plt.subplots(figsize=(8, 8))
+        from config.parameters import COMPPS_PARAMS
+
+        # Create figure with GridSpec for plot + table layout
+        fig = plt.figure(figsize=(14, 10))
+        gs = GridSpec(1, 2, figure=fig, width_ratios=[1, 2], wspace=0.1)
+        ax_plot = fig.add_subplot(gs[0])
+        ax_table = fig.add_subplot(gs[1])
 
         # Error bar plot by scenario with asymmetric errors
         # Get scenario numbering for consistent labels and sorting
-        scenario_map = self._get_scenario_number_map()
+        scenario_map = get_scenario_number_map()
 
         # Sort scenarios by their number to ensure consistent order
         available_scenarios = df['scenario_name'].unique()
@@ -378,27 +406,114 @@ class SpectrumPlotter:
 
         # Plot with asymmetric error bars
         if has_errors:
-            ax.errorbar(
+            ax_plot.errorbar(
                 gamma_values, y_positions,
                 xerr=[gamma_errors_neg, gamma_errors_pos],
-                fmt='o', markersize=6, capsize=4, capthick=2,
+                fmt='o', markersize=3, capsize=4, capthick=2,
                 label='90% CI'
             )
             title_suffix = ' (with 90% CI)'
         else:
-            ax.scatter(gamma_values, y_positions, s=50)
+            ax_plot.scatter(gamma_values, y_positions, s=50)
             title_suffix = ''
 
-        ax.set_xlabel('Photon Index (Γ)', fontsize=12)
-        ax.set_ylabel('Scenario', fontsize=12)
-        ax.set_title(f'Photon Index by Scenario{title_suffix}', fontsize=14)
-        ax.set_yticks(range(1, len(scenarios) + 1))
-        ax.set_yticklabels(scenario_labels)
-        ax.grid(True, alpha=0.3, axis='x')
-        ax.axvline(1.3, ls='--', color='k', alpha=.4)
-        ax.set_xlim(0.4, 4.4)
-        if has_errors:
-            ax.legend()
+        ax_plot.set_xlabel('Photon Index (Γ)', fontsize=12)
+        ax_plot.set_ylabel('Scenario', fontsize=12)
+        ax_plot.set_title(
+            f'Photon Index by Scenario{title_suffix}', fontsize=14
+        )
+        ax_plot.set_yticks(range(1, len(scenarios) + 1))
+        ax_plot.set_yticklabels(scenario_labels)
+        ax_plot.invert_yaxis()  # Scenario 1 at top
+        ax_plot.grid(True, alpha=0.5, axis='y')
+        ax_plot.axvline(1.3, ls='--', color='k', alpha=.4)
+        ax_plot.set_xlim(0.4, 4.1)
+        # if has_errors:
+        #     ax_plot.legend()
+
+        # Create parameter table
+        varying_params = self._get_varying_parameters(scenarios)
+
+        # Format parameter values for table
+        table_data = []
+        for scenario in scenarios:
+            row = [f"{scenario_map[scenario]}"]
+            for param in varying_params:
+                value = COMPPS_PARAMS[scenario][param]
+                # Format value based on type and magnitude
+                if param == 'kTe':
+                    row.append(f"{value:.0f}")
+                elif param in ['tau_y', 'cosIncl', 'cov_frac']:
+                    row.append(f"{value:.2f}")
+                elif param in ['kTbb', 'rel_refl']:
+                    row.append(f"{value:.1f}")
+                elif param == 'geom':
+                    row.append(f"{value:.0f}")
+                elif param == 'xi':
+                    row.append(f"{value:.0f}")
+                elif param == 'Tdisk':
+                    row.append(f"{value/1000:.0f}k")
+                else:
+                    row.append(f"{value:.2g}")
+            # Add everything without scenario number
+            table_data.append(row[1:])
+
+        # Create table header with abbreviated parameter names
+        param_abbrev = {
+            'kTe': 'kTe\n(keV)',
+            'tau_y': 'τ',
+            'kTbb': 'kTbb\n(keV)',
+            'geom': 'geom',
+            'cosIncl': 'cos i',
+            'rel_refl': 'R',
+            'xi': 'ξ',
+            'Tdisk': 'Tdisk',
+            'HovR_cyl': 'H/R',
+            'Fe_ab_re': 'Fe',
+            'Me_ab': 'Me',
+            'Betor10': 'β',
+            'Rin': 'Rin',
+            'Rout': 'Rout',
+            'cov_frac': 'C',
+            'EleIndex': 'p',
+        }
+        # col_labels = ['#'] + [param_abbrev.get(p, p) for p in varying_params]
+        col_labels = [param_abbrev.get(p, p) for p in varying_params]
+
+        # Turn off axis for table
+        ax_table.axis('off')
+
+        # Create table using matplotlib
+        table = ax_table.table(
+            cellText=table_data,
+            colLabels=col_labels,
+            cellLoc='center',
+            loc='center',
+            bbox=[0, 0.02, 1, 1]
+        )
+
+        # Style the table
+        table.auto_set_font_size(False)
+        table.set_fontsize(8)
+        table.scale(1, 1.5)
+
+        # Style header row
+        for i in range(len(col_labels)):
+            cell = table[(0, i)]
+            cell.set_height(0.025)
+            cell.set_facecolor('#E0E0E0')
+            cell.set_text_props(weight='bold', fontsize=8)
+
+        # Alternate row colors for readability
+        for i in range(len(table_data)):
+            for j in range(len(col_labels)):
+                cell = table[(i + 1, j)]
+                if i % 2 != 0:
+                    cell.set_facecolor('#dddddd')
+                if i in [4, 6]:
+                    cell.set_facecolor('#ff9fa4b0')
+
+        ax_table.set_title('CompPS Parameters', fontsize=12, pad=20)
 
         plt.tight_layout()
 

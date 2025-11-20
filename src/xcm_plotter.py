@@ -7,7 +7,7 @@ showing the fitted spectra and residuals for multiple scenarios.
 
 import re
 from pathlib import Path
-from typing import Dict, Optional, List, Tuple
+from typing import List, Tuple
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import numpy as np
@@ -21,19 +21,7 @@ except ImportError:
 
 from src.utils import ChangeDir
 from src import plot_settings
-
-
-def get_scenario_number_map() -> Dict[str, int]:
-    """
-    Get consistent scenario numbering based on COMPPS_PARAMS order.
-
-    Returns
-    -------
-    dict
-        Mapping of scenario names to numbers (1-indexed)
-    """
-    from config.parameters import COMPPS_PARAMS
-    return {name: idx + 1 for idx, name in enumerate(COMPPS_PARAMS.keys())}
+from config.parameters import get_scenario_number_map
 
 
 def find_xcm_files(results_dir: str = 'data/results') -> List[Tuple[str, str]]:
@@ -68,7 +56,7 @@ def find_xcm_files(results_dir: str = 'data/results') -> List[Tuple[str, str]]:
 
 
 def plot_single_spectrum(ax1, ax2, xcm_file: str, scenario_name: str,
-                         scenario_num: int, rebin: int = 10,
+                         scenario_num: int, rebin: int = 20,
                          group_num: int = 1, color: str = 'C0'):
     """
     Plot a single spectrum with model and residuals.
@@ -117,7 +105,7 @@ def plot_single_spectrum(ax1, ax2, xcm_file: str, scenario_name: str,
         rates = Plot.y(group_num, 1)
         errors = Plot.yErr(group_num, 1)
         foldedmodel = Plot.model(group_num)
-        dataLabels = Plot.labels(1)
+        # dataLabels = Plot.labels(1)
 
         # Prepare step energies for model plot
         nE = len(energies)
