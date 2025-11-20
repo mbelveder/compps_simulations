@@ -407,6 +407,19 @@ COMPPS_PARAMS = {
     },
 }
 
+
+def get_scenario_number_map():
+    """
+    Get consistent scenario numbering based on COMPPS_PARAMS order.
+
+    Returns
+    -------
+    dict
+        Mapping of scenario names to numbers (1-indexed)
+    """
+    return {name: idx + 1 for idx, name in enumerate(COMPPS_PARAMS.keys())}
+
+
 # Normalization value (to be adjusted based on source flux requirements)
 DEFAULT_NORM = 1.0
 
