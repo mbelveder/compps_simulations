@@ -6,12 +6,14 @@ absorbed powerlaw model (tbabs*powerlaw).
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import numpy as np
 
 from .xspec_interface import XspecSession
+from config.parameters import get_scenario_number_map
 
 
 class SpectrumFitter:
@@ -129,13 +131,17 @@ class SpectrumFitter:
             except Exception as e:
                 print(f"  Warning: PhoIndex error calculation failed: {e}")
 
-            # Save XSPEC session to .xcm file
-            xcm_file = self._save_xspec_session(spectrum_file)
-            print(f"  Saved XSPEC session: {Path(xcm_file).name}")
+            # Save XSPEC session to .xcm files (auto and manual versions)
+            xcm_file, xcm_file_manual = self._save_xspec_session(
+                spectrum_file)
+            print(f"  Saved XSPEC sessions: {Path(xcm_file).name}, "
+                  f"{Path(xcm_file_manual).name}")
 
             # Extract fit results
-            results = self._extract_fit_results(model, spectrum_file, energy_range)
+            results = self._extract_fit_results(
+                model, spectrum_file, energy_range)
             results['xcm_file'] = xcm_file
+            results['xcm_file_manual'] = xcm_file_manual
 
             # Print summary
             stat_name = ("C-statistic" if self.stat_method == "cstat"
@@ -243,9 +249,13 @@ class SpectrumFitter:
 
         return results
 
-    def _save_xspec_session(self, spectrum_file: str) -> str:
+    def _save_xspec_session(self, spectrum_file: str) -> Tuple[str, str]:
         """
-        Save XSPEC session to .xcm file with additional commands.
+        Save XSPEC session to .xcm files (both auto and manual versions).
+
+        Generates two versions:
+        - Auto version: for automated plotting (compatible with Xset.restore())
+        - Manual version: for interactive console use (includes plot commands)
 
         Parameters
         ----------
@@ -254,33 +264,55 @@ class SpectrumFitter:
 
         Returns
         -------
-        str
-            Path to saved .xcm file
+        tuple of str
+            (auto_xcm_file, manual_xcm_file) - Paths to saved .xcm files
         """
         import xspec
 
         spectrum_path = Path(spectrum_file)
-        xcm_filename = f"fit_{spectrum_path.stem}.xcm"
+
+        # Extract scenario name and get scenario number
+        scenario_pattern = re.compile(r'sim_(.+?)_\d{8}_\d{6}')
+        match = scenario_pattern.search(spectrum_path.stem)
+
+        if match:
+            scenario_name = match.group(1)
+            scenario_map = get_scenario_number_map()
+            scenario_num = scenario_map.get(scenario_name, 99)
+            xcm_base = f"fit_{scenario_num:02d}_{spectrum_path.stem}"
+        else:
+            # Fallback if pattern doesn't match
+            xcm_base = f"fit_{spectrum_path.stem}"
+
+        xcm_filename = f"{xcm_base}.xcm"
+        xcm_filename_manual = f"{xcm_base}_manual.xcm"
         xcm_file = self.output_dir / xcm_filename
+        xcm_file_manual = self.output_dir / xcm_filename_manual
 
-        # Save the current XSPEC session
+        # Save the auto version (for automated plotting)
         xspec.Xset.save(str(xcm_file), info='a')
-
-        # Append additional commands to make the session interactive-ready
         with open(xcm_file, 'a') as f:
             f.write('\n')
             f.write('# Additional commands for interactive use\n')
             f.write('ignore bad\n')
             f.write('ignore **-0.3 9.0-**\n')
-            # f.write('fit\n')
-            # f.write('err 2\n')
-            # f.write('setpl en\n')
-            # f.write('fit\n')
-            # f.write('cpd /xw\n')
-            # f.write('setplot r 10 10\n')
-            # f.write('pl eeufs\n')
 
-        return str(xcm_file)
+        # Save the manual version (for interactive console use)
+        xspec.Xset.save(str(xcm_file_manual), info='a')
+        with open(xcm_file_manual, 'a') as f:
+            f.write('\n')
+            f.write('# Additional commands for interactive use\n')
+            f.write('ignore bad\n')
+            f.write('ignore **-0.3 9.0-**\n')
+            f.write('fit\n')
+            f.write('err 2\n')
+            f.write('setpl en\n')
+            f.write('fit\n')
+            f.write('cpd /xw\n')
+            f.write('setplot r 10 10\n')
+            f.write('pl eeufs\n')
+
+        return str(xcm_file), str(xcm_file_manual)
 
     def fit_multiple(self,
                     spectrum_files: List[str],
@@ -484,4 +516,5 @@ def find_fit_results(results_dir: str = "data/results",
 
     result_files = sorted(results_path.glob(search_pattern))
     return [str(f) for f in result_files if f.stem != "fit_log"]
+
 

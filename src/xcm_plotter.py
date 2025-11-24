@@ -39,10 +39,12 @@ def find_xcm_files(results_dir: str = 'data/results') -> List[Tuple[str, str]]:
         List of (xcm_file_path, scenario_name) tuples, sorted by scenario number
     """
     results_path = Path(results_dir)
-    xcm_pattern = re.compile(r'fit_sim_(.+?)_\d{8}_\d{6}_grp\.xcm')
+    # Updated pattern to handle scenario numbers: fit_01_sim_...
+    xcm_pattern = re.compile(r'fit_\d{2}_sim_(.+?)_\d{8}_\d{6}_grp\.xcm')
 
     xcm_files = []
-    for xcm_file in results_path.glob('fit_sim_*_grp.xcm'):
+    # Updated glob pattern to match new format
+    for xcm_file in results_path.glob('fit_*_sim_*_grp.xcm'):
         match = xcm_pattern.match(xcm_file.name)
         if match:
             scenario_name = match.group(1)
