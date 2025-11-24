@@ -510,10 +510,309 @@ class SpectrumPlotter:
                 cell = table[(i + 1, j)]
                 if i % 2 != 0:
                     cell.set_facecolor('#dddddd')
-                if i in [4, 6]:
-                    cell.set_facecolor('#ff9fa4b0')
+                # if i in [4, 6]:
+                    # cell.set_facecolor('#ff9fa4b0')
 
         ax_table.set_title('CompPS Parameters', fontsize=12, pad=20)
+
+        plt.tight_layout()
+
+        if save_as:
+            save_path = self.output_dir / save_as
+            plt.savefig(save_path, dpi=self.dpi, bbox_inches='tight')
+            print(f"Plot saved to: {save_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+        return fig
+
+    def plot_photon_index_distribution_by_ktbb(self,
+                                               df: pd.DataFrame,
+                                               ktbb_values: Optional[List[float]] = None,
+                                               output_prefix: str = 'photon_index_dist',
+                                               show: bool = False) -> List[str]:
+        """
+        Plot photon index distribution for each kTbb value separately.
+
+        Creates separate plots for each kTbb value, showing all base scenarios
+        at that kTbb value.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Results DataFrame
+        ktbb_values : list, optional
+            List of kTbb values to plot (default: [0.1, 0.3, 0.5, 0.8])
+        output_prefix : str
+            Prefix for output filenames (default: 'photon_index_dist')
+        show : bool
+            Whether to display plots
+
+        Returns
+        -------
+        list of str
+            List of saved plot filenames
+        """
+        import re
+        from config.parameters import (
+            get_ktbb_scenario_number_map, COMPPS_PARAMS, DEFAULT_KTBB_VALUES
+        )
+
+        if ktbb_values is None:
+            ktbb_values = DEFAULT_KTBB_VALUES
+
+        saved_plots = []
+
+        for ktbb_val in ktbb_values:
+            # Filter dataframe for this kTbb value
+            ktbb_str = f"{ktbb_val:.2f}".rstrip('0').rstrip('.')
+            pattern = f'_ktbb{ktbb_str}$'
+            ktbb_df = df[df['scenario_name'].str.contains(pattern, regex=True, na=False)].copy()
+
+            if ktbb_df.empty:
+                print(f"No data found for kTbb = {ktbb_val:.2f}")
+                continue
+
+            print(f"Creating photon index distribution plot for kTbb = {ktbb_val:.2f}")
+
+            # Create figure with GridSpec for plot + table layout
+            fig = plt.figure(figsize=(14, 10))
+            fig.suptitle(f'kTbb = {ktbb_val:.2f} keV', fontsize=16, weight='bold', y=0.995)
+            gs = GridSpec(1, 2, figure=fig, width_ratios=[1, 2], wspace=0.1)
+            ax_plot = fig.add_subplot(gs[0])
+            ax_table = fig.add_subplot(gs[1])
+
+            # Get scenario numbering
+            scenario_map = get_ktbb_scenario_number_map(ktbb_values=ktbb_values)
+
+            # Extract base scenario names (remove kTbb suffix)
+            ktbb_df['base_scenario'] = ktbb_df['scenario_name'].str.replace(
+                pattern, '', regex=True
+            )
+
+            # Get unique base scenarios and sort by their base number
+            base_scenarios = ktbb_df['base_scenario'].unique()
+            base_map = get_scenario_number_map()
+            base_scenarios = sorted(
+                base_scenarios,
+                key=lambda x: base_map.get(x, 999)
+            )
+
+            # Check if asymmetric error columns exist
+            has_errors = (
+                'fit_powerlaw.PhoIndex_error_neg' in ktbb_df.columns and
+                'fit_powerlaw.PhoIndex_error_pos' in ktbb_df.columns
+            )
+
+            y_positions = []
+            gamma_values = []
+            gamma_errors_neg = []
+            gamma_errors_pos = []
+            scenario_labels = []
+
+            for i, base_scenario in enumerate(base_scenarios):
+                scenario_df = ktbb_df[ktbb_df['base_scenario'] == base_scenario]
+                pho_indices = scenario_df['fit_powerlaw.PhoIndex'].dropna()
+
+                if len(pho_indices) == 0:
+                    continue
+
+                n_spectra = len(scenario_df)
+                offset_increment = 0.08 if n_spectra > 1 else 0
+
+                for j, (_, row) in enumerate(scenario_df.iterrows()):
+                    if pd.isna(row['fit_powerlaw.PhoIndex']):
+                        continue
+
+                    if n_spectra > 1:
+                        offset = (j - (n_spectra - 1) / 2) * offset_increment
+                    else:
+                        offset = 0
+
+                    y_positions.append(i + 1 + offset)
+                    gamma_values.append(row['fit_powerlaw.PhoIndex'])
+
+                    if has_errors:
+                        nerr = row.get('fit_powerlaw.PhoIndex_error_neg', 0)
+                        perr = row.get('fit_powerlaw.PhoIndex_error_pos', 0)
+                        gamma_errors_neg.append(nerr if not pd.isna(nerr) else 0)
+                        gamma_errors_pos.append(perr if not pd.isna(perr) else 0)
+                    else:
+                        gamma_errors_neg.append(0)
+                        gamma_errors_pos.append(0)
+
+                scenario_labels.append(
+                    f"{base_map.get(base_scenario, '?')}. {base_scenario}"
+                )
+
+            # Plot with asymmetric error bars
+            if has_errors:
+                ax_plot.errorbar(
+                    gamma_values, y_positions,
+                    xerr=[gamma_errors_neg, gamma_errors_pos],
+                    fmt='o', markersize=3, capsize=4, capthick=2,
+                    label='90% CI'
+                )
+                title_suffix = ' (with 90% CI)'
+            else:
+                ax_plot.scatter(gamma_values, y_positions, s=50)
+                title_suffix = ''
+
+            ax_plot.set_xlabel('Photon Index (Γ)', fontsize=12)
+            ax_plot.set_ylabel('Scenario', fontsize=12)
+            ax_plot.set_title(
+                f'Photon Index by Scenario{title_suffix}', fontsize=14
+            )
+            ax_plot.set_yticks(range(1, len(base_scenarios) + 1))
+            ax_plot.set_yticklabels(scenario_labels)
+            ax_plot.invert_yaxis()
+            ax_plot.grid(True, alpha=0.5, axis='y')
+            ax_plot.axvline(1.3, ls='--', color='k', alpha=.4)
+            ax_plot.set_xlim(0.4, 4.1)
+
+            # Create parameter table for base scenarios
+            varying_params = self._get_varying_parameters(base_scenarios)
+
+            table_data = []
+            for base_scenario in base_scenarios:
+                row = []
+                for param in varying_params:
+                    value = COMPPS_PARAMS[base_scenario][param]
+                    if param == 'kTe':
+                        row.append(f"{value:.0f}")
+                    elif param in ['tau_y', 'cosIncl', 'cov_frac']:
+                        row.append(f"{value:.2f}")
+                    elif param in ['kTbb', 'rel_refl']:
+                        row.append(f"{value:.1f}")
+                    elif param == 'geom':
+                        row.append(f"{value:.0f}")
+                    elif param == 'xi':
+                        row.append(f"{value:.0f}")
+                    elif param == 'Tdisk':
+                        row.append(f"{value/1000:.0f}k")
+                    else:
+                        row.append(f"{value:.2g}")
+                table_data.append(row)
+
+            param_abbrev = {
+                'kTe': 'kTe\n(keV)',
+                'tau_y': 'τ',
+                'kTbb': 'kTbb\n(keV)',
+                'geom': 'geom',
+                'cosIncl': 'cos i',
+                'rel_refl': 'R',
+                'xi': 'ξ',
+                'Tdisk': 'Tdisk',
+                'HovR_cyl': 'H/R',
+                'Fe_ab_re': 'Fe',
+                'Me_ab': 'Me',
+                'Betor10': 'β',
+                'Rin': 'Rin',
+                'Rout': 'Rout',
+                'cov_frac': 'C',
+                'EleIndex': 'p',
+            }
+            col_labels = [param_abbrev.get(p, p) for p in varying_params]
+
+            ax_table.axis('off')
+            table = ax_table.table(
+                cellText=table_data,
+                colLabels=col_labels,
+                cellLoc='center',
+                loc='center',
+                bbox=[0, 0.02, 1, 1]
+            )
+
+            table.auto_set_font_size(False)
+            table.set_fontsize(8)
+            table.scale(1, 1.5)
+
+            for i in range(len(col_labels)):
+                cell = table[(0, i)]
+                cell.set_height(0.025)
+                cell.set_facecolor('#E0E0E0')
+                cell.set_text_props(weight='bold', fontsize=8)
+
+            for i in range(len(table_data)):
+                for j in range(len(col_labels)):
+                    cell = table[(i + 1, j)]
+                    if i % 2 != 0:
+                        cell.set_facecolor('#dddddd')
+                    if i in [4, 6]:
+                        cell.set_facecolor('#ff9fa4b0')
+
+            ax_table.set_title('CompPS Parameters', fontsize=12, pad=20)
+
+            plt.tight_layout()
+
+            # Save figure
+            output_file = f"{output_prefix}_ktbb{ktbb_str}.png"
+            save_path = self.output_dir / output_file
+            plt.savefig(save_path, dpi=self.dpi, bbox_inches='tight')
+            print(f"Plot saved to: {save_path}")
+            saved_plots.append(output_file)
+
+            if show:
+                plt.show()
+            else:
+                plt.close()
+
+        return saved_plots
+
+    def plot_ktbb_vs_photon_index(self,
+                                  df: pd.DataFrame,
+                                  save_as: Optional[str] = None,
+                                  show: bool = True) -> plt.Figure:
+        """
+        Plot kTbb vs fitted photon index relationship.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Results DataFrame
+        save_as : str, optional
+            Filename to save plot
+        show : bool
+            Whether to display plot
+
+        Returns
+        -------
+        plt.Figure
+            Figure object
+        """
+        import re
+
+        # Extract kTbb values from scenario names
+        df_ktbb = df.copy()
+        df_ktbb['kTbb'] = df_ktbb['scenario_name'].str.extract(
+            r'_ktbb([\d.]+)$', expand=False
+        ).astype(float)
+
+        # Extract base scenario names
+        df_ktbb['base_scenario'] = df_ktbb['scenario_name'].str.replace(
+            r'_ktbb[\d.]+$', '', regex=True
+        )
+
+        fig, ax = plt.subplots(figsize=self.figsize)
+
+        # Plot each base scenario as a separate line
+        base_scenarios = df_ktbb['base_scenario'].unique()
+        for base_scenario in base_scenarios:
+            scenario_df = df_ktbb[df_ktbb['base_scenario'] == base_scenario]
+            scenario_df = scenario_df.sort_values('kTbb')
+
+            ax.plot(scenario_df['kTbb'], scenario_df['fit_powerlaw.PhoIndex'],
+                   marker='o', label=base_scenario, alpha=0.7)
+
+        ax.set_xlabel('kTbb (keV)', fontsize=12)
+        ax.set_ylabel('Photon Index (Γ)', fontsize=12)
+        ax.set_title('kTbb vs Fitted Photon Index', fontsize=14)
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xscale('log')
 
         plt.tight_layout()
 

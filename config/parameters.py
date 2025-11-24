@@ -27,6 +27,8 @@ CompPS Model Parameters (PyXspec names) with hard limits:
     par19: Redshift - redshift [-0.999, 10]
 """
 
+from typing import Dict, List, Optional
+
 # Physics-motivated parameter sets based on AGN observations
 # Reference: theory.md - observational constraints from literature
 COMPPS_PARAMS = {
@@ -82,7 +84,7 @@ COMPPS_PARAMS = {
         'EleIndex': 2.0,
         'Gmin': -1.0,
         'Gmax': 10.0,
-        'kTbb': 0.5,         # Higher seed photon temp
+        'kTbb': 0.3,         # Higher seed photon temp
         'tau_y': 0.4,        # Higher optical depth
         'geom': 1.0,
         'HovR_cyl': 1.0,
@@ -105,7 +107,7 @@ COMPPS_PARAMS = {
         'EleIndex': 2.0,
         'Gmin': -1.0,
         'Gmax': 10.0,
-        'kTbb': 0.2,         # Cooler seed photons
+        'kTbb': 0.3,         # Cooler seed photons
         'tau_y': 0.2,        # Lower optical depth (anticorrelation)
         'geom': 1.0,
         'HovR_cyl': 1.0,
@@ -128,7 +130,7 @@ COMPPS_PARAMS = {
         'EleIndex': 2.0,
         'Gmin': -1.0,
         'Gmax': 10.0,
-        'kTbb': 0.8,         # Hot seed photons
+        'kTbb': 0.3,         # Hot seed photons
         'tau_y': 0.6,        # Higher optical depth
         'geom': 1.0,
         'HovR_cyl': 1.0,
@@ -151,7 +153,7 @@ COMPPS_PARAMS = {
         'EleIndex': 2.0,
         'Gmin': -1.0,
         'Gmax': 10.0,
-        'kTbb': 0.15,        # Low seed photon temp
+        'kTbb': 0.3,        # Low seed photon temp
         'tau_y': 0.15,       # Very low optical depth (anticorrelation)
         'geom': 1.0,
         'HovR_cyl': 1.0,
@@ -197,7 +199,7 @@ COMPPS_PARAMS = {
         'EleIndex': 2.0,
         'Gmin': -1.0,
         'Gmax': 10.0,
-        'kTbb': 0.25,
+        'kTbb': 0.3,
         'tau_y': 0.3,
         'geom': 1.0,
         'HovR_cyl': 1.0,
@@ -418,6 +420,102 @@ def get_scenario_number_map():
         Mapping of scenario names to numbers (1-indexed)
     """
     return {name: idx + 1 for idx, name in enumerate(COMPPS_PARAMS.keys())}
+
+
+def generate_ktbb_variants(
+    base_params: Dict[str, Dict[str, float]] = None,
+    ktbb_values: List[float] = None
+) -> Dict[str, Dict[str, float]]:
+    """
+    Generate kTbb variant scenarios from base parameter sets.
+
+    Creates variants of each base scenario with different kTbb values.
+    Scenario names are formatted as: {base_name}_ktbb{value}
+
+    Parameters
+    ----------
+    base_params : dict, optional
+        Base parameter sets to use (default: COMPPS_PARAMS)
+    ktbb_values : list, optional
+        List of kTbb values to use
+        (default: [0.1, 0.3, 0.5, 0.8])
+
+    Returns
+    -------
+    dict
+        Dictionary of {scenario_name: compps_params} with kTbb variants
+    """
+    if base_params is None:
+        base_params = COMPPS_PARAMS
+
+    if ktbb_values is None:
+        ktbb_values = DEFAULT_KTBB_VALUES
+
+    variants = {}
+
+    for base_name, base_params_dict in base_params.items():
+        for ktbb_val in ktbb_values:
+            # Create variant name: base_name_ktbb{value}
+            # Format kTbb value to avoid decimal issues in filenames
+            ktbb_str = f"{ktbb_val:.2f}".rstrip('0').rstrip('.')
+            variant_name = f"{base_name}_ktbb{ktbb_str}"
+
+            # Create parameter copy with modified kTbb
+            variant_params = base_params_dict.copy()
+            variant_params['kTbb'] = ktbb_val
+
+            variants[variant_name] = variant_params
+
+    return variants
+
+
+# Default kTbb values for variation study
+# This is used as a fallback default in functions, but actual values
+# should be specified via command-line or Makefile
+DEFAULT_KTBB_VALUES = [0.1, 0.3, 0.5, 0.8]
+
+
+def get_ktbb_scenario_number_map(
+    ktbb_values: Optional[List[float]] = None
+) -> Dict[str, int]:
+    """
+    Get consistent scenario numbering for kTbb study scenarios.
+
+    Groups scenarios by base name, then by kTbb value.
+    Numbering: base scenarios 1-16, each with kTbb variants
+    numbered sequentially.
+
+    Parameters
+    ----------
+    ktbb_values : list, optional
+        List of kTbb values to use (default: DEFAULT_KTBB_VALUES)
+
+    Returns
+    -------
+    dict
+        Mapping of scenario names to numbers (1-indexed)
+    """
+    if ktbb_values is None:
+        ktbb_values = DEFAULT_KTBB_VALUES
+    base_map = get_scenario_number_map()
+
+    scenario_map = {}
+    scenario_num = 1
+
+    # Sort base scenarios by their number
+    sorted_bases = sorted(
+        COMPPS_PARAMS.keys(),
+        key=lambda x: base_map.get(x, 999)
+    )
+
+    for base_name in sorted_bases:
+        for ktbb_val in ktbb_values:
+            ktbb_str = f"{ktbb_val:.2f}".rstrip('0').rstrip('.')
+            variant_name = f"{base_name}_ktbb{ktbb_str}"
+            scenario_map[variant_name] = scenario_num
+            scenario_num += 1
+
+    return scenario_map
 
 
 # Normalization value (to be adjusted based on source flux requirements)

@@ -17,6 +17,7 @@ help:
 	@echo "    make analyze      - Only analyze existing results"
 	@echo "    make plot         - Only generate plots"
 	@echo "    make plot-grid    - Generate XCM spectra grid plot"
+	@echo "    make ktbb-study   - Run kTbb variation study"
 	@echo "    make doc-params   - Generate parameter documentation (Markdown)"
 	@echo ""
 	@echo "  Development:"
@@ -36,6 +37,8 @@ help:
 	@echo "    ENERGY_MIN        - Minimum fit energy in keV (default: 0.2)"
 	@echo "    ENERGY_MAX        - Maximum fit energy in keV (default: 10.0)"
 	@echo "    STAT_METHOD       - Fit statistic: chi/cstat/pgstat (default: cstat)"
+	@echo "    KTBB_VALUES       - kTbb values for study (default: 0.1,0.3,0.5,0.8)"
+	@echo "                        Example: make ktbb-study KTBB_VALUES=0.01,0.05,0.1"
 	@echo ""
 	@echo "  Notes:"
 	@echo "    - Spectra are automatically grouped with ftgrouppha (groupscale=3)"
@@ -65,6 +68,7 @@ SCENARIOS ?= --all
 ENERGY_MIN ?= 0.3
 ENERGY_MAX ?= 10.0
 STAT_METHOD ?= cstat
+KTBB_VALUES ?= 0.1,0.3,0.5,0.8
 
 # Check if ARF and RMF are set
 check-response:
@@ -116,6 +120,18 @@ plot:
 plot-grid:
 	@echo "Generating XCM spectra grid plot..."
 	poetry run python scripts/plot_xcm_grid.py
+
+ktbb-study: check-response
+	@echo "Running kTbb variation study..."
+	poetry run python scripts/run_ktbb_study.py \
+		--arf $(ARF) \
+		--rmf $(RMF) \
+		--exposure $(EXPOSURE) \
+		--norm $(NORM) \
+		--energy-min $(ENERGY_MIN) \
+		--energy-max $(ENERGY_MAX) \
+		--stat-method $(STAT_METHOD) \
+		--ktbb-values $(KTBB_VALUES)
 
 doc-params:
 	@echo "Generating parameter documentation..."
