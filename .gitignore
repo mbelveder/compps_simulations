@@ -44,6 +44,7 @@ poetry.lock
 # Data directories (generated files)
 data/simulated/*.pha
 data/simulated/*.json
+data/simulated/*.fak
 data/results/*.json
 data/results/*.png
 data/results/*.txt
