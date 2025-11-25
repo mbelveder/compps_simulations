@@ -354,16 +354,19 @@ class ResultsAnalyzer:
                 )
 
                 # For single spectrum (N=1): show fit value + PyXspec errors
-                if row['n_spectra'] == 1 and has_neg_err and has_pos_err:
-                    neg_err = row['photon_index_error_neg_mean']
-                    pos_err = row['photon_index_error_pos_mean']
+                if row['n_spectra'] == 1:
                     photon_idx_str = (
                         f"  Fitted Photon Index: "
-                        f"{row['photon_index_mean']:.3f} "
-                        f"(90% CI: -{neg_err:.3f}/+{pos_err:.3f})"
+                        f"{row['photon_index_mean']:.3f}"
                     )
-                # For multiple spectra (N>1): show distribution ± std
-                # and optionally PyXspec errors
+                    if has_neg_err and has_pos_err:
+                        neg_err = row['photon_index_error_neg_mean']
+                        pos_err = row['photon_index_error_pos_mean']
+                        photon_idx_str += (
+                            f" (90% CI: -{neg_err:.3f}/+{pos_err:.3f})"
+                        )
+                # For multiple spectra (N>1): show distribution statistics ONLY
+                # Do NOT mix with per-fit PyXspec uncertainties
                 else:
                     photon_idx_str = (
                         f"  Fitted Photon Index: "
@@ -371,26 +374,47 @@ class ResultsAnalyzer:
                     )
                     if not np.isnan(row['photon_index_std']):
                         photon_idx_str += f" ± {row['photon_index_std']:.3f}"
-                    if has_neg_err and has_pos_err:
-                        neg_err = row['photon_index_error_neg_mean']
-                        pos_err = row['photon_index_error_pos_mean']
-                        photon_idx_str += (
-                            f" (avg 90% CI: -{neg_err:.3f}/"
-                            f"+{pos_err:.3f})"
-                        )
+                    # Explicitly do NOT show averaged PyXspec errors for N>1
+                    # to avoid mixing distribution uncertainty with per-fit uncertainty
                 report_lines.append(photon_idx_str)
 
             if 'nH_mean' in row and not np.isnan(row['nH_mean']):
-                report_lines.append(
-                    f"  Fitted nH: {row['nH_mean']:.4f} ± {row['nH_std']:.4f} "
-                    f"x 10^22 cm^-2"
-                )
+                # For N=1: show value only (std will be NaN)
+                # For N>1: show distribution statistics
+                if row['n_spectra'] == 1:
+                    report_lines.append(
+                        f"  Fitted nH: {row['nH_mean']:.4f} x 10^22 cm^-2"
+                    )
+                else:
+                    nh_std = row.get('nH_std', np.nan)
+                    if not np.isnan(nh_std):
+                        report_lines.append(
+                            f"  Fitted nH: {row['nH_mean']:.4f} ± {nh_std:.4f} "
+                            f"x 10^22 cm^-2"
+                        )
+                    else:
+                        report_lines.append(
+                            f"  Fitted nH: {row['nH_mean']:.4f} x 10^22 cm^-2"
+                        )
 
             if 'chi2_mean' in row and not np.isnan(row['chi2_mean']):
-                report_lines.append(
-                    f"  Reduced chi-squared: {row['chi2_mean']:.3f} "
-                    f"± {row['chi2_std']:.3f}"
-                )
+                # For N=1: show value only (std will be NaN)
+                # For N>1: show distribution statistics
+                if row['n_spectra'] == 1:
+                    report_lines.append(
+                        f"  Reduced chi-squared: {row['chi2_mean']:.3f}"
+                    )
+                else:
+                    chi2_std = row.get('chi2_std', np.nan)
+                    if not np.isnan(chi2_std):
+                        report_lines.append(
+                            f"  Reduced chi-squared: {row['chi2_mean']:.3f} "
+                            f"± {chi2_std:.3f}"
+                        )
+                    else:
+                        report_lines.append(
+                            f"  Reduced chi-squared: {row['chi2_mean']:.3f}"
+                        )
 
         # Temperature vs photon index analysis
         report_lines.append("\n" + "-" * 70)
