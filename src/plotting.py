@@ -556,7 +556,6 @@ class SpectrumPlotter:
         list of str
             List of saved plot filenames
         """
-        import re
         from config.parameters import (
             get_ktbb_scenario_number_map, COMPPS_PARAMS, DEFAULT_KTBB_VALUES
         )
@@ -783,7 +782,6 @@ class SpectrumPlotter:
         plt.Figure
             Figure object
         """
-        import re
 
         # Extract kTbb values from scenario names
         df_ktbb = df.copy()
