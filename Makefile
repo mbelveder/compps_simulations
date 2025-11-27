@@ -18,6 +18,7 @@ help:
 	@echo "    make plot         - Only generate plots"
 	@echo "    make plot-grid    - Generate XCM spectra grid plot"
 	@echo "    make ktbb-study   - Run kTbb variation study"
+	@echo "    make tau-kTe-study - Run tau_y vs kTe parameter grid study"
 	@echo "    make doc-params   - Generate parameter documentation (Markdown)"
 	@echo ""
 	@echo "  Development:"
@@ -39,6 +40,10 @@ help:
 	@echo "    STAT_METHOD       - Fit statistic: chi/cstat/pgstat (default: cstat)"
 	@echo "    KTBB_VALUES       - kTbb values for study (default: 0.1,0.3,0.5,0.8)"
 	@echo "                        Example: make ktbb-study KTBB_VALUES=0.01,0.05,0.1"
+	@echo "    TAU_VALUES        - tau_y values for tau-kTe study (default: 0.2,0.5,1.0,1.5)"
+	@echo "    KTE_VALUES        - kTe values for tau-kTe study (default: 50,100,150)"
+	@echo "    SCENARIO          - Base scenario for tau-kTe study (default: typical_agn_slab)"
+	@echo "    VERBOSE           - Enable verbose logging for tau-kTe study (default: 0, set to 1 to enable)"
 	@echo ""
 	@echo "  Notes:"
 	@echo "    - Spectra are automatically grouped with ftgrouppha (groupscale=3)"
@@ -60,6 +65,9 @@ setup:
 
 # Pipeline execution targets
 # Variables that can be overridden
+# Helper for comma substitution in arguments
+comma := ,
+
 ARF ?= src_5359_020_ARF_00001.fits.gz
 RMF ?= src_5359_020_RMF_00001.fits.gz
 EXPOSURE ?= 1000000
@@ -132,6 +140,25 @@ ktbb-study: check-response
 		--energy-max $(ENERGY_MAX) \
 		--stat-method $(STAT_METHOD) \
 		--ktbb-values $(KTBB_VALUES)
+
+# Variables for tau-kTe study
+TAU_VALUES ?= 0.2,0.5,1.0,1.5,2,2.5,3,3.5
+KTE_VALUES ?= 50,100,150
+SCENARIO ?= typical_agn_slab
+VERBOSE ?= 0
+
+tau-kTe-study: check-response
+	@echo "Running tau_y vs kTe parameter grid study..."
+	poetry run python scripts/run_tau_kTe_study.py \
+		--scenario $(SCENARIO) \
+		--arf $(ARF) \
+		--rmf $(RMF) \
+		--tau-values $(subst $(comma), ,$(TAU_VALUES)) \
+		--kTe-values $(subst $(comma), ,$(KTE_VALUES)) \
+		--exposure $(EXPOSURE) \
+		--normalization $(NORM) \
+		--energy-range $(ENERGY_MIN) $(ENERGY_MAX) \
+		$(if $(filter 1,$(VERBOSE)),-v,)
 
 doc-params:
 	@echo "Generating parameter documentation..."
