@@ -38,13 +38,13 @@ COMPPS_PARAMS = {
         'EleIndex': 2.0,     # Not used for Maxwellian
         'Gmin': -1.0,        # Maxwellian distribution
         'Gmax': 10.0,
-        'kTbb': 0.1,         # Typical disk seed photons
+        'kTbb': 0.01,         # Typical disk seed photons
         'tau_y': 0.25,       # Median optical depth (slab geometry)
         'geom': 1.0,         # Slab geometry
         'HovR_cyl': 1.0,
         'cosIncl': 0.5,      # 60 deg inclination
         'cov_frac': 1.0,
-        'rel_refl': 0,     # No reflection
+        'rel_refl': -1,     # 
         'Fe_ab_re': 1.0,
         'Me_ab': 1.0,
         'xi': 100.0,         # Moderate ionization

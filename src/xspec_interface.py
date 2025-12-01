@@ -31,7 +31,7 @@ COMPPS_LIMITS = {
     'HovR_cyl': (0.5, 2.0),
     'cosIncl': (0.05, 0.95),
     'cov_frac': (0.0, 1.0),
-    'rel_refl': (0.0, 10000.0),
+    'rel_refl': (-10, 10000.0),
     'Fe_ab_re': (0.1, 10.0),
     'Me_ab': (0.1, 10.0),
     'xi': (0.0, 100000.0),
@@ -132,6 +132,11 @@ class XspecSession:
                     getattr(model.compPS, param_name).values = [
                         param_value, 0.01, -4.0, -3.0, 3.0, 4.0
                     ]
+                elif param_name == 'rel_refl':
+                    getattr(model.compPS, param_name).values = [
+                        param_value, 0.01, -4.0, -3.0, 1000, 10000
+                    ]
+
                 else:
                     getattr(model.compPS, param_name).values = param_value
 

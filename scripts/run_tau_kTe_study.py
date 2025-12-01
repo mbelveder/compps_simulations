@@ -598,13 +598,15 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
     else:
         ax.set_xlabel(r'Optical Depth ($\tau_y$)', fontsize=14)
         title_x_label = 'Optical Depth'
-    
+
     ax.set_ylabel(r'Photon Index ($\Gamma$, tbabs*po)', fontsize=14)
-    base_params = COMPPS_PARAMS['typical_agn_slab']
+    base_params = COMPPS_PARAMS[base_scenario_name]
     kTbb = base_params.get('kTbb', 'UNKNOWN')
+    rel_refl = base_params.get('rel_refl', 'UNKNOWN')
+
     ax.set_title(
-        (f'Photon Index vs {title_x_label}\nBase Scenario: {base_scenario_name}, '
-        f'kTbb: {kTbb} keV'),
+        (f'Photon Index vs {title_x_label}\nBase Scenario: {base_scenario_name}\n'
+        f'kTbb: {kTbb} keV, rel_refl: {rel_refl}'),
         fontsize=16,
         pad=20
     )
