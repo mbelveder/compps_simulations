@@ -32,6 +32,7 @@ poetry.lock
 # IDE
 .vscode/
 .idea/
+.kiro/
 *.swp
 *.swo
 *~
@@ -71,3 +72,5 @@ htmlcov/
 *.tmp
 .DS_Store
 
+# Tests
+.hypothesis/
