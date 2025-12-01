@@ -26,7 +26,7 @@ COMPPS_LIMITS = {
     'Gmin': (-1.0, 10.0),
     'Gmax': (10.0, 10000.0),
     'kTbb': (0.001, 10.0),
-    'tau_y': (0.05, 3.0),
+    'tau_y': (-4.0, 3.0),  # Extended range for y-parameter support (negative = Compton y-parameter)
     'geom': (-5.0, 4.0),
     'HovR_cyl': (0.5, 2.0),
     'cosIncl': (0.05, 0.95),
@@ -126,7 +126,14 @@ class XspecSession:
         # Set parameters using actual PyXspec parameter names
         for param_name, param_value in params.items():
             if hasattr(model.compPS, param_name):
-                getattr(model.compPS, param_name).values = param_value
+                if param_name == 'tau_y':
+                    # Set extended limits for tau_y to allow negative values (y-parameter mode)
+                    # Format: [value, delta, min, bot, top, max]
+                    getattr(model.compPS, param_name).values = [
+                        param_value, 0.01, -4.0, -3.0, 3.0, 4.0
+                    ]
+                else:
+                    getattr(model.compPS, param_name).values = param_value
 
         # Set normalization
         model.compPS.norm.values = norm

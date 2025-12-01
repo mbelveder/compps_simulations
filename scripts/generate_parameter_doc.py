@@ -60,7 +60,7 @@ def generate_parameter_table(params_dict):
     md_lines.append("| 4 | `Gmax` | Maximum Lorentz factor γ |")
     md_lines.append("| | | **Electron distribution rules:** If Gmin or Gmax <1: Maxwellian with kTe. If kTe=0: power-law with EleIndex, Gmin, Gmax. If Gmax<Gmin (both ≥1): cutoff Maxwellian. If kTe≠0 and Gmin,Gmax≥1: hybrid distribution |")
     md_lines.append("| 5 | `kTbb` | Seed photon temperature (keV). If >0: blackbody. If <0: multicolor disk with T_inner=\\|kTbb\\| |")
-    md_lines.append("| 6 | `tau_y` | If >0: vertical optical depth τ. If <0: Compton y-parameter (y=4Θτ). Limits: slab τ<1, sphere τ<3 |")
+    md_lines.append("| 6 | `tau_y` | If >0: vertical optical depth τ. If <0: Compton y-parameter. Limits: slab τ<1, sphere τ<3 |")
     md_lines.append("| 7 | `geom` | Geometry: 0=escape probability sphere (fast), 1=slab, 2=cylinder, 3=hemisphere, 4,5=sphere. Negative values: isotropic/homogeneous sources. -5=sphere with eigenfunction distribution |")
     md_lines.append("| 8 | `HovR_cyl` | Height-to-radius ratio (cylinder geometry only) |")
     md_lines.append("| 9 | `cosIncl` | Cosine of inclination angle (if <0: only blackbody emission) |")

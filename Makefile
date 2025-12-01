@@ -142,7 +142,8 @@ ktbb-study: check-response
 		--ktbb-values $(KTBB_VALUES)
 
 # Variables for tau-kTe study
-TAU_VALUES ?= 0.2,0.5,1.0,1.5,2,2.5,3,3.5
+# TAU_VALUES ?= 0.2,0.5,1.0,1.5,2,2.5,3,3.5
+TAU_VALUES ?= -0.1,-0.2,-0.5,-1.0,-1.5,-2
 KTE_VALUES ?= 50,100,150
 SCENARIO ?= typical_agn_slab
 VERBOSE ?= 0

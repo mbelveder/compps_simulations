@@ -29,6 +29,53 @@ from src.simulator import SpectrumSimulator
 from src.fitter import SpectrumFitter
 
 
+def validate_tau_values(tau_values: list, logger) -> str:
+    """
+    Validate tau_y values - must be all positive or all negative.
+
+    Parameters
+    ----------
+    tau_values : list
+        List of tau_y values to validate
+    logger : logging.Logger
+        Logger instance
+
+    Returns
+    -------
+    str
+        'positive' if all values > 0, 'negative' if all values < 0
+
+    Raises
+    ------
+    ValueError
+        If values are mixed positive and negative, or if list is empty
+    """
+    if not tau_values:
+        raise ValueError("tau_values list cannot be empty")
+
+    positive_count = sum(1 for v in tau_values if v > 0)
+    negative_count = sum(1 for v in tau_values if v < 0)
+    zero_count = sum(1 for v in tau_values if v == 0)
+
+    if zero_count > 0:
+        raise ValueError(
+            "tau_y values cannot be zero (must be strictly positive or negative)"
+        )
+
+    if positive_count > 0 and negative_count > 0:
+        raise ValueError(
+            "tau_y values must be all positive or all negative, not mixed. "
+            f"Found {positive_count} positive and {negative_count} negative values."
+        )
+
+    if positive_count > 0:
+        logger.info(f"  tau_y mode: positive (optical depth)")
+        return 'positive'
+    else:
+        logger.info(f"  tau_y mode: negative (Compton y-parameter)")
+        return 'negative'
+
+
 def setup_logging(verbose: bool = False, log_file: Path = None):
     """
     Set up logging configuration.
@@ -150,6 +197,52 @@ def save_run_metadata(run_dir: Path, args, base_params: dict,
     logger.info(f"  Run metadata saved to: {metadata_file}")
 
 
+def format_tau_for_filename(tau: float) -> str:
+    """
+    Format tau value for use in filenames.
+    
+    Negative values use 'm' prefix instead of minus sign to create valid filenames.
+    E.g., -0.50 → "m0.50", 0.50 → "0.50"
+    
+    Parameters
+    ----------
+    tau : float
+        Tau value (can be positive or negative)
+        
+    Returns
+    -------
+    str
+        Formatted tau string suitable for filenames
+    """
+    if tau < 0:
+        return f"m{abs(tau):.2f}"
+    else:
+        return f"{tau:.2f}"
+
+
+def parse_tau_from_filename(tau_str: str) -> float:
+    """
+    Parse tau value from filename format back to float.
+    
+    Handles 'm' prefix for negative values.
+    E.g., "m0.50" → -0.50, "0.50" → 0.50
+    
+    Parameters
+    ----------
+    tau_str : str
+        Tau string from filename (e.g., "m0.50" or "0.50")
+        
+    Returns
+    -------
+    float
+        Parsed tau value
+    """
+    if tau_str.startswith('m'):
+        return -float(tau_str[1:])
+    else:
+        return float(tau_str)
+
+
 def create_parameter_grid(base_params, tau_values, kTe_values, logger):
     """
     Create parameter grid by varying tau_y and kTe.
@@ -179,7 +272,9 @@ def create_parameter_grid(base_params, tau_values, kTe_values, logger):
 
     for kTe in kTe_values:
         for tau in tau_values:
-            scenario_name = f"grid_kTe{kTe:.0f}_tau{tau:.2f}"
+            # Handle negative tau values in scenario name
+            tau_str = format_tau_for_filename(tau)
+            scenario_name = f"grid_kTe{kTe:.0f}_tau{tau_str}"
             params = base_params.copy()
             params['kTe'] = kTe
             params['tau_y'] = tau
@@ -401,7 +496,9 @@ def extract_results_for_plotting(fit_results, kTe_values, tau_values, logger):
         logger.info(f"  kTe = {kTe:.0f} keV:")
 
         for tau in tau_values:
-            scenario_name = f"grid_kTe{kTe:.0f}_tau{tau:.2f}"
+            # Handle negative tau values in scenario name lookup
+            tau_str = format_tau_for_filename(tau)
+            scenario_name = f"grid_kTe{kTe:.0f}_tau{tau_str}"
 
             if scenario_name in fit_results:
                 result = fit_results[scenario_name]
@@ -432,7 +529,8 @@ def extract_results_for_plotting(fit_results, kTe_values, tau_values, logger):
     return results_by_kTe
 
 
-def plot_results(results_by_kTe, output_file, base_scenario_name, logger):
+def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
+                 tau_mode: str = 'positive'):
     """
     Create plot of photon index vs tau_y for different kTe values.
 
@@ -446,6 +544,8 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger):
         Name of base scenario
     logger : logging.Logger
         Logger instance
+    tau_mode : str
+        'positive' for optical depth mode, 'negative' for Compton y-parameter mode
     """
     logger.info("")
     logger.info("=" * 70)
@@ -461,10 +561,15 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger):
 
     for (kTe, data), color in zip(sorted(results_by_kTe.items()), colors):
         if len(data['tau']) > 0:
-            tau = np.array(data['tau'])
             gamma = np.array(data['gamma'])
             err_neg = np.array(data['gamma_err_neg'])
             err_pos = np.array(data['gamma_err_pos'])
+
+            # Inverse y-parameter values when plotting
+            if tau_mode == 'negative':
+                tau = -np.array(data['tau'])
+            else:
+                tau = np.array(data['tau'])
 
             logger.info(f"  Plotting kTe = {kTe:.0f} keV: {len(tau)} data points")
 
@@ -485,16 +590,30 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger):
         else:
             logger.warning(f"  kTe = {kTe:.0f} keV: No data points to plot")
 
-    ax.set_xlabel(r'Optical Depth ($\tau_y$)', fontsize=14)
+    # Update x-axis label based on tau_mode
+    if tau_mode == 'negative':
+        ax.set_xlabel(r'Compton y-parameter (4 × Θ × τ)', fontsize=14)
+        title_x_label = 'Compton y-parameter'
+        ax.axvline(1, color='k', alpha=.3)
+    else:
+        ax.set_xlabel(r'Optical Depth ($\tau_y$)', fontsize=14)
+        title_x_label = 'Optical Depth'
+    
     ax.set_ylabel(r'Photon Index ($\Gamma$, tbabs*po)', fontsize=14)
+    base_params = COMPPS_PARAMS['typical_agn_slab']
+    kTbb = base_params.get('kTbb', 'UNKNOWN')
     ax.set_title(
-        f'Photon Index vs Optical Depth\nBase Scenario: {base_scenario_name}',
+        (f'Photon Index vs {title_x_label}\nBase Scenario: {base_scenario_name}, '
+        f'kTbb: {kTbb} keV'),
         fontsize=16,
         pad=20
     )
     ax.legend(fontsize=12, frameon=True, shadow=True)
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.axhline(1.3, alpha=0.6, linestyle='--', color='k')
+
+    ax.set_xlim(0, 2.1)
+    ax.set_ylim(0.5, 4)
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
@@ -675,6 +794,9 @@ def main():
         if key in ['kTe', 'tau_y', 'kTbb', 'geom', 'cosIncl', 'rel_refl']:
             logger.info(f"  {key}: {value}")
 
+    # Validate tau values early - must be all positive or all negative
+    tau_mode = validate_tau_values(args.tau_values, logger)
+
     # Create subdirectories (run_dir already created for log file)
     spectra_dir = run_dir / "spectra"
     fits_dir = run_dir / "fits"
@@ -741,7 +863,7 @@ def main():
 
     # Create plot (in run directory)
     plot_file = run_dir / "photon_index_vs_tau.png"
-    plot_results(results_by_kTe, plot_file, args.scenario, logger)
+    plot_results(results_by_kTe, plot_file, args.scenario, logger, tau_mode)
 
     logger.info("")
     logger.info("=" * 70)
