@@ -424,7 +424,7 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
             coeffs = np.polyfit(tau, gamma, degree)
             poly = np.poly1d(coeffs)
 
-            tau_smooth = np.linspace(tau.min(), gamma.max(), 300)
+            tau_smooth = np.linspace(tau.min(), tau.max(), 300)
             gamma_smooth = poly(tau_smooth)
 
             ax.plot(
