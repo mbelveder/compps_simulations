@@ -320,6 +320,19 @@ class XspecSession:
         flux_err = xspec.AllData(1).flux[1]
         return flux, flux_err
 
+    def save_xcm_file(self, filename: str) -> None:
+        """
+        Save current XSPEC model state to an .xcm file.
+
+        Parameters
+        ----------
+        filename : str
+            Path to output .xcm file
+        model : xspec.Model
+            Model to save
+        """
+        xspec.Xset.save(filename, info='m')
+
     @staticmethod
     def clear_session():
         """Clear all data and models from XSPEC."""
