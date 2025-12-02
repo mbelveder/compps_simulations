@@ -40,14 +40,14 @@ COMPPS_PARAMS = {
         'Gmax': 10.0,
         'kTbb': 0.01,         # Typical disk seed photons
         'tau_y': 0.25,       # Median optical depth (slab geometry)
-        'geom': 1.0,         # Slab geometry
+        'geom': 1,         # approximate treatment of radiative transfer using escape probability for a sphere
         'HovR_cyl': 1.0,
-        'cosIncl': 0.5,      # 60 deg inclination
+        'cosIncl': 0.5,
         'cov_frac': 1.0,
-        'rel_refl': 0,     # No reflection
+        'rel_refl': 0,
         'Fe_ab_re': 1.0,
         'Me_ab': 1.0,
-        'xi': 100.0,         # Moderate ionization
+        'xi': 0,         # No ionization
         'Tdisk': 30000.0,
         'Betor10': -10.0,
         'Rin': 6.01,
