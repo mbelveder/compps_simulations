@@ -157,6 +157,11 @@ class SpectrumSimulator:
         # Set up CompPS model
         model = self.xspec.setup_compps_model(compps_params, norm=norm)
 
+        # Save .xcm file for this model
+        xcm_file = output_file.with_suffix('.xcm')
+        self.xspec.save_xcm_file(str(xcm_file))
+        print(f"  Model saved to: {xcm_file}")
+
         # Generate fake spectrum
         self.xspec.generate_fake_spectrum(
             arf_file=self.arf_file,
