@@ -44,7 +44,7 @@ COMPPS_PARAMS = {
         'HovR_cyl': 1.0,
         'cosIncl': 0.5,      # 60 deg inclination
         'cov_frac': 1.0,
-        'rel_refl': 0,     # 
+        'rel_refl': 0,     # No reflection
         'Fe_ab_re': 1.0,
         'Me_ab': 1.0,
         'xi': 100.0,         # Moderate ionization
