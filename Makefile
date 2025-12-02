@@ -1,6 +1,6 @@
 # Makefile for CompPS Simulations Project
 
-.PHONY: help install setup clean run simulate fit analyze plot plot-grid test lint format
+.PHONY: help install setup clean run simulate fit analyze plot plot-grid test lint format tau-kTe-study rel-refl-study
 
 # Default target
 help:
@@ -19,6 +19,7 @@ help:
 	@echo "    make plot-grid    - Generate XCM spectra grid plot"
 	@echo "    make ktbb-study   - Run kTbb variation study"
 	@echo "    make tau-kTe-study - Run tau_y vs kTe parameter grid study"
+	@echo "    make rel-refl-study - Run rel_refl parameter grid study"
 	@echo "    make doc-params   - Generate parameter documentation (Markdown)"
 	@echo ""
 	@echo "  Development:"
@@ -40,10 +41,11 @@ help:
 	@echo "    STAT_METHOD       - Fit statistic: chi/cstat/pgstat (default: cstat)"
 	@echo "    KTBB_VALUES       - kTbb values for study (default: 0.1,0.3,0.5,0.8)"
 	@echo "                        Example: make ktbb-study KTBB_VALUES=0.01,0.05,0.1"
-	@echo "    TAU_VALUES        - tau_y values for tau-kTe study (default: 0.2,0.5,1.0,1.5)"
-	@echo "    KTE_VALUES        - kTe values for tau-kTe study (default: 50,100,150)"
-	@echo "    SCENARIO          - Base scenario for tau-kTe study (default: typical_agn_slab)"
-	@echo "    VERBOSE           - Enable verbose logging for tau-kTe study (default: 0, set to 1 to enable)"
+	@echo "    TAU_VALUES        - tau_y values for tau-kTe/rel-refl studies (default: -0.1,-0.2,-0.5,-1.0,-1.5,-2)"
+	@echo "    KTE_VALUES        - kTe values for tau-kTe/rel-refl studies (default: 50,100,150)"
+	@echo "    SCENARIO          - Base scenario for tau-kTe/rel-refl studies (default: typical_agn_slab)"
+	@echo "    REL_REFL_VALUES   - rel_refl values for rel-refl study (default: 0,0.1,0.3,0.5,1,2,5,10)"
+	@echo "    VERBOSE           - Enable verbose logging for studies (default: 0, set to 1 to enable)"
 	@echo ""
 	@echo "  Notes:"
 	@echo "    - Spectra are automatically grouped with ftgrouppha (groupscale=3)"
@@ -143,7 +145,7 @@ ktbb-study: check-response
 
 # Variables for tau-kTe study
 # TAU_VALUES ?= 0.2,0.5,1.0,1.5,2,2.5,3,3.5
-TAU_VALUES ?= -0.1,-0.2,-0.5,-1.0,-1.5,-2
+TAU_VALUES ?= -0.1,-0.2,-0.3,-0.4,-0.5,-0.6,-0.7,-0.8,-0.9,-1
 KTE_VALUES ?= 50,100,150
 SCENARIO ?= typical_agn_slab
 VERBOSE ?= 0
@@ -154,6 +156,23 @@ tau-kTe-study: check-response
 		--scenario $(SCENARIO) \
 		--arf $(ARF) \
 		--rmf $(RMF) \
+		--tau-values $(subst $(comma), ,$(TAU_VALUES)) \
+		--kTe-values $(subst $(comma), ,$(KTE_VALUES)) \
+		--exposure $(EXPOSURE) \
+		--normalization $(NORM) \
+		--energy-range $(ENERGY_MIN) $(ENERGY_MAX) \
+		$(if $(filter 1,$(VERBOSE)),-v,)
+
+# Variables for rel-refl study
+REL_REFL_VALUES ?= 0,0.1,0.3,0.5,1,2,5,10,50,100,-1
+
+rel-refl-study: check-response
+	@echo "Running rel_refl parameter grid study..."
+	poetry run python scripts/run_rel_refl_study.py \
+		--scenario $(SCENARIO) \
+		--arf $(ARF) \
+		--rmf $(RMF) \
+		--rel-refl-values $(subst $(comma), ,$(REL_REFL_VALUES)) \
 		--tau-values $(subst $(comma), ,$(TAU_VALUES)) \
 		--kTe-values $(subst $(comma), ,$(KTE_VALUES)) \
 		--exposure $(EXPOSURE) \
