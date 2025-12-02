@@ -112,7 +112,7 @@ def main():
         type=float,
         nargs='+',
         default=[0, 0.1, 0.3, 0.5, 1, 2, 5, 10],
-        help='List of rel_refl values to test (default: 0 0.1 0.3 0.5 1 2 5 10)'
+        help='List of rel_refl values to test (default: 0,0.1,0.3,0.5,1,2,5,10,50,100,-1)'
     )
     parser.add_argument(
         '--tau-values',

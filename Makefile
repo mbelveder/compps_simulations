@@ -44,7 +44,7 @@ help:
 	@echo "    TAU_VALUES        - tau_y values for tau-kTe/rel-refl studies (default: -0.1,-0.2,-0.5,-1.0,-1.5,-2)"
 	@echo "    KTE_VALUES        - kTe values for tau-kTe/rel-refl studies (default: 50,100,150)"
 	@echo "    SCENARIO          - Base scenario for tau-kTe/rel-refl studies (default: typical_agn_slab)"
-	@echo "    REL_REFL_VALUES   - rel_refl values for rel-refl study (default: 0,0.1,0.3,0.5,1,2,5,10)"
+	@echo "    REL_REFL_VALUES   - rel_refl values for rel-refl study (default: 0,0.1,0.3,0.5,1,2,5,10,50,100,-1)"
 	@echo "    VERBOSE           - Enable verbose logging for studies (default: 0, set to 1 to enable)"
 	@echo ""
 	@echo "  Notes:"
