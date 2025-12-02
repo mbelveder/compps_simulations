@@ -10,8 +10,8 @@ rc = {
     "font.size": 14,
     "axes.labelsize": 14,
     "axes.titlesize": 18,
-    "xtick.labelsize": 8,
-    "ytick.labelsize": 8,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
     "legend.fontsize": 15,
 
     # lines
