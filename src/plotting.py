@@ -5,6 +5,7 @@ This module provides functions to plot simulated spectra, fitted models,
 and analysis results.
 """
 
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
@@ -14,7 +15,14 @@ import pandas as pd
 from astropy.io import fits
 
 from .analysis import ResultsAnalyzer
+from .utils import ChangeDir
 from config.parameters import get_scenario_number_map
+
+try:
+    from xspec import AllData, AllModels, Xset, Plot
+    XSPEC_AVAILABLE = True
+except ImportError:
+    XSPEC_AVAILABLE = False
 
 
 class SpectrumPlotter:
@@ -937,3 +945,225 @@ class SpectrumPlotter:
         print(f"Created {len(saved_plots)} summary plots")
         return saved_plots
 
+
+def plot_compps_models_by_kte(spectra_dir: str,
+                              output_dir: str,
+                              energy_range: List[float],
+                              xspec_plt_en_range: str = "0.1 50 1000 log",
+                              logger=None) -> List[str]:
+    """
+    Plot CompPS model spectra from .xcm files, grouped by kTe value.
+
+    For each kTe value, creates a single plot showing all tau values
+    with visually distinguishable colors/linestyles.
+
+    Parameters
+    ----------
+    spectra_dir : str
+        Directory containing .xcm files (pattern: sim_grid_kTe{kTe}_tau{tau}_{timestamp}.xcm)
+    output_dir : str
+        Directory to save plots (will create plots/ subdirectory)
+    xspec_plt_en_range : str
+        Energy range string for XSPEC plotting (default: "0.1 50 1000 log")
+    logger : logging.Logger, optional
+        Logger instance for progress messages
+
+    Returns
+    -------
+    list of str
+        List of paths to saved plot files
+    """
+    if not XSPEC_AVAILABLE:
+        if logger:
+            logger.error("PyXspec not available. Cannot generate model plots.")
+        return []
+
+    def parse_tau_from_filename(tau_str: str) -> float:
+        """
+        Parse tau value from filename format back to float.
+
+        Handles 'm' prefix for negative values.
+        E.g., "m0.50" → -0.50, "0.50" → 0.50
+        """
+        if tau_str.startswith('m'):
+            return -float(tau_str[1:])
+        else:
+            return float(tau_str)
+
+    spectra_path = Path(spectra_dir)
+    output_path = Path(output_dir)
+    plots_dir = output_path / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    if logger:
+        logger.info("")
+        logger.info("=" * 70)
+        logger.info("GENERATING COMPPS MODEL PLOTS")
+        logger.info("=" * 70)
+        logger.info(f"Spectra directory: {spectra_dir}")
+        logger.info(f"Output directory: {plots_dir}")
+        logger.info(f"Energy range: {xspec_plt_en_range}")
+
+    # Find all .xcm files matching the pattern
+    # Pattern: sim_grid_kTe{kTe:.0f}_tau{tau_str}_{timestamp}.xcm
+    xcm_pattern = re.compile(r'sim_grid_kTe(\d+)_tau([\dm\d.]+)_\d{8}_\d{6}\.xcm')
+    xcm_files = []
+
+    for xcm_file in spectra_path.glob('sim_grid_kTe*.xcm'):
+        match = xcm_pattern.match(xcm_file.name)
+        if match:
+            kTe_str = match.group(1)
+            tau_str = match.group(2)
+            try:
+                kTe = float(kTe_str)
+                tau = parse_tau_from_filename(tau_str)
+                xcm_files.append((str(xcm_file), kTe, tau))
+            except (ValueError, AttributeError) as e:
+                if logger:
+                    logger.warning(f"  Could not parse filename: {xcm_file.name} ({e})")
+                continue
+
+    if not xcm_files:
+        if logger:
+            logger.warning("  No matching .xcm files found")
+        return []
+
+    # Group files by kTe value
+    files_by_kte: Dict[float, List[Tuple[str, float]]] = {}
+    for xcm_file, kTe, tau in xcm_files:
+        if kTe not in files_by_kte:
+            files_by_kte[kTe] = []
+        files_by_kte[kTe].append((xcm_file, tau))
+
+    # Sort tau values for each kTe group
+    for kTe in files_by_kte:
+        files_by_kte[kTe].sort(key=lambda x: x[1])
+
+    if logger:
+        logger.info(f"  Found {len(xcm_files)} .xcm files")
+        logger.info(f"  Grouped into {len(files_by_kte)} kTe values")
+
+    saved_plots = []
+
+    # Use ChangeDir to ensure correct working directory for XSPEC
+    with ChangeDir(Path(__file__).parent.parent):
+        for kTe in sorted(files_by_kte.keys()):
+            tau_files = files_by_kte[kTe]
+
+            if logger:
+                logger.info(f"  Plotting kTe = {kTe:.0f} keV ({len(tau_files)} tau values)")
+
+            # Create figure
+            fig, ax = plt.subplots(figsize=(10, 7))
+
+            # Use colormap for different tau values
+            colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(tau_files)))
+
+            for (xcm_file, tau), color in zip(tau_files, colors):
+                try:
+                    # Clear and restore XSPEC session
+                    AllData.clear()
+                    AllModels.clear()
+                    Xset.restore(xcm_file)
+
+                    # Set energy range and resolution for plotting
+                    AllModels.setEnergies(xspec_plt_en_range)
+
+                    # Generate the plot data with model components
+                    Plot("eemo")  # E: Energy, E: Energy, M: Model, O: (No data)
+
+                    # Extract the energy grid and total model flux
+                    en = list(map(float, Plot.x()))
+                    total = list(map(float, Plot.model()))  # Total model
+
+                    # Format tau label
+                    tau_label = f"y = {-tau:.2f}"
+
+                    # Plot model
+                    ax.plot(en, total, label=tau_label, alpha=0.8, color=color,
+                           lw=2, ls='-')
+
+                except Exception as e:
+                    if logger:
+                        logger.warning(f"    Failed to plot {Path(xcm_file).name}: {e}")
+                    continue
+
+            # Extract model parameters from the first file (they should be the same for all)
+            if tau_files:
+                try:
+                    if logger:
+                        logger.info("Extracting model parameters to place them on the plot...")
+
+                    AllData.clear()
+                    AllModels.clear()
+                    Xset.restore(tau_files[0][0])  # Load first file to get parameters
+
+                    model = AllModels(1)
+                    compPS = model.compPS
+
+                    # Extract key parameters
+                    params = {
+                        # 'kTe': compPS.kTe.values[0],
+                        'kTbb': compPS.kTbb.values[0],
+                        'geom': compPS.geom.values[0],
+                        'cosIncl': compPS.cosIncl.values[0],
+                        'rel_refl': compPS.rel_refl.values[0]  # Add this line
+                    }
+
+                    # Create parameter text
+                    param_text = (
+                        # f"kTe = {params['kTe']:.1f} keV\n"
+                        f"kTbb = {params['kTbb']:.3f} keV\n"
+                        f"geom = {params['geom']:.0f}\n"
+                        f"cosIncl = {params['cosIncl']:.2f}\n"
+                    )
+
+                    # Add text box to plot
+                    ax.text(0.02, 0.02, param_text,
+                            transform=ax.transAxes,
+                            fontsize=9,
+                            verticalalignment='bottom',
+                            horizontalalignment='left',
+                            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
+                            family='monospace')
+                except Exception as e:
+                    if logger:
+                        logger.warning(f"    Could not extract model parameters: {e}")
+
+            # Format plot
+            ax.set_xlabel('Energy (keV)', fontsize=14)
+            ax.set_ylabel('Model Flux', fontsize=14)
+            rel_refl = params['rel_refl']
+            ax.set_title(
+                (
+                    f'CompPS Models: kTe = {kTe:.0f} keV, '
+                    fr'$\bf{{rel\_refl}}$: {rel_refl}'
+                ),
+                fontsize=16, pad=20
+            )
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+            ax.grid(True, alpha=0.3)
+            ax.legend(fontsize=10, loc='upper left', frameon=True)
+            ax.axvline(2, color='k', ls='--')
+            ax.axvline(7, color='k', ls='--')
+
+            # Save plot
+            output_file = plots_dir / f"model_plot_kTe{kTe:.0f}.png"
+            plt.tight_layout()
+            plt.savefig(output_file, dpi=300, bbox_inches='tight')
+            plt.close()
+
+            saved_plots.append(str(output_file))
+            if logger:
+                logger.info(f"    Saved: {output_file.name}")
+
+    if logger:
+        logger.info("")
+        logger.info("-" * 70)
+        logger.info(f"MODEL PLOTTING SUMMARY")
+        logger.info("-" * 70)
+        logger.info(f"  Generated {len(saved_plots)} plots")
+        logger.info(f"  Output directory: {plots_dir}")
+
+    return saved_plots

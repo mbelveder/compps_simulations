@@ -46,6 +46,7 @@ help:
 	@echo "    SCENARIO          - Base scenario for tau-kTe/rel-refl studies (default: typical_agn_slab)"
 	@echo "    REL_REFL_VALUES   - rel_refl values for rel-refl study (default: 0,0.1,0.3,0.5,1,2,5,10,50,100,-1)"
 	@echo "    VERBOSE           - Enable verbose logging for studies (default: 0, set to 1 to enable)"
+	@echo "    PLOT_MODELS       - Generate CompPS model plots for tau-kTe study (default: 0, set to 1 to enable)"
 	@echo ""
 	@echo "  Notes:"
 	@echo "    - Spectra are automatically grouped with ftgrouppha (groupscale=3)"
@@ -149,6 +150,7 @@ TAU_VALUES ?= -0.1,-0.2,-0.3,-0.4,-0.5,-0.6,-0.7,-0.8,-0.9,-1
 KTE_VALUES ?= 50,100,150
 SCENARIO ?= typical_agn_slab
 VERBOSE ?= 0
+PLOT_MODELS ?= 0
 
 tau-kTe-study: check-response
 	@echo "Running tau_y vs kTe parameter grid study..."
@@ -161,7 +163,8 @@ tau-kTe-study: check-response
 		--exposure $(EXPOSURE) \
 		--normalization $(NORM) \
 		--energy-range $(ENERGY_MIN) $(ENERGY_MAX) \
-		$(if $(filter 1,$(VERBOSE)),-v,)
+		$(if $(filter 1,$(VERBOSE)),-v,) \
+		$(if $(filter 1,$(PLOT_MODELS)),--plot-models,)
 
 # Variables for rel-refl study
 REL_REFL_VALUES ?= 0,0.1,0.3,0.5,1,2,5,10,50,100,-1

@@ -44,7 +44,7 @@ COMPPS_PARAMS = {
         'HovR_cyl': 1.0,
         'cosIncl': 0.5,
         'cov_frac': 1.0,
-        'rel_refl': 0,
+        'rel_refl': 0.5,
         'Fe_ab_re': 1.0,
         'Me_ab': 1.0,
         'xi': 0,         # No ionization

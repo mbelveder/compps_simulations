@@ -33,8 +33,7 @@ from src.grid_study_common import (
     format_tau_for_filename,
     validate_tau_values
 )
-
-
+from src.plotting import plot_compps_models_by_kte
 
 
 def create_run_directory(base_output_dir: str, scenario_name: str,
@@ -185,8 +184,6 @@ def create_parameter_grid(base_params, tau_values, kTe_values, logger):
     return grid_params
 
 
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Parameter grid study: tau_y vs kTe effect on photon index'
@@ -253,6 +250,11 @@ def main():
         '-v', '--verbose',
         action='store_true',
         help='Enable verbose (DEBUG) logging'
+    )
+    parser.add_argument(
+        '--plot-models',
+        action='store_true',
+        help='Generate model plots from .xcm files (grouped by kTe)'
     )
 
     args = parser.parse_args()
@@ -337,6 +339,16 @@ def main():
         logger.error("No successful simulations. Exiting.")
         return 1
 
+    # Generate model plots from .xcm files (if requested)
+    if args.plot_models:
+        plot_compps_models_by_kte(
+            spectra_dir=str(spectra_dir),
+            output_dir=str(run_dir),
+            energy_range=args.energy_range,
+            xspec_plt_en_range="0.1 50 1000 log",
+            logger=logger
+        )
+
     # Run fits (output to run-specific fits directory)
     fit_results = run_fits(
         spectrum_files,
@@ -366,7 +378,10 @@ def main():
 
     # Create plot (in run directory)
     plot_file = run_dir / "photon_index_vs_tau.png"
-    plot_results(results_by_kTe, plot_file, args.scenario, logger, tau_mode)
+    plot_results(
+        results_by_kTe, plot_file, args.scenario, logger,
+        fit_energy_range=list(args.energy_range), tau_mode=tau_mode
+        )
 
     logger.info("")
     logger.info("=" * 70)
@@ -381,6 +396,8 @@ def main():
     logger.info(f"  Metadata: {run_dir / 'run_metadata.json'}")
     logger.info(f"  Results CSV: {csv_file}")
     logger.info(f"  Plot: {plot_file}")
+    if args.plot_models:
+        logger.info(f"  Model plots: {run_dir / 'plots'}/")
     logger.info(f"  Spectra: {spectra_dir}/")
     logger.info(f"  Fit results: {fits_dir}/")
     logger.info("")

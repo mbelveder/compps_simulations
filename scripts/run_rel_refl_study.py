@@ -312,7 +312,11 @@ def main():
 
         # Create plot
         plot_file = rel_refl_dir / "photon_index_vs_tau.png"
-        plot_results(results_by_kTe, plot_file, args.scenario, logger, tau_mode, rel_refl=rel_refl)
+        plot_results(
+            results_by_kTe, plot_file, args.scenario, logger,
+            fit_energy_range=args.energy_range,
+            tau_mode=tau_mode, rel_refl=rel_refl
+            )
 
         # Update metadata
         study_metadata['status'] = 'success'

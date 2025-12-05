@@ -5,6 +5,7 @@ This module contains shared functionality used by multiple grid study scripts
 (e.g., tau_kTe_study, rel_refl_study) to avoid code duplication.
 """
 
+from ast import List
 import logging
 import sys
 from pathlib import Path
@@ -374,7 +375,8 @@ def extract_results_for_plotting(fit_results, kTe_values, tau_values, logger):
 
 
 def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
-                 tau_mode: str = 'positive', rel_refl: float = None):
+                 fit_energy_range: List, tau_mode: str = 'positive',
+                 rel_refl: float = None):
     """
     Create plot of photon index vs tau_y for different kTe values.
 
@@ -408,8 +410,6 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
     for (kTe, data), color in zip(sorted(results_by_kTe.items()), colors):
         if len(data['tau']) > 0:
             gamma = np.array(data['gamma'])
-            err_neg = np.array(data['gamma_err_neg'])
-            err_pos = np.array(data['gamma_err_pos'])
 
             # Inverse y-parameter values when plotting
             if tau_mode == 'negative':
@@ -435,6 +435,9 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
                 alpha=0.8,
                 label=f'kTe = {kTe:.0f} keV'
             )
+
+            # err_neg = np.array(data['gamma_err_neg'])
+            # err_pos = np.array(data['gamma_err_pos'])
 
             # ax.errorbar(
             #     tau, gamma,
@@ -477,8 +480,10 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
 
     title = (
         f'Photon Index vs {title_x_label}\n'
-        fr'$\bf{{geom}}$: {geom}, $\bf{{rel\_refl}}$: {title_rel_refl}, '
-        fr'kTbb: {kTbb} keV, cosIncl: {cosIncl}'
+        f'geom: {geom}, rel_refl: {title_rel_refl}, '
+        f'kTbb: {kTbb} keV, cosIncl: {cosIncl}\n'
+        fr'$\bf{{Fitting\ energy\ range}}$: '
+        f'{fit_energy_range[0]:.1f}–{fit_energy_range[1]:.1f} keV'
     )
     ax.set_title(title, fontsize=16, pad=20)
     ax.legend(fontsize=12, frameon=True)
@@ -489,7 +494,7 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
     ax.set_ylim(0, 4.5)
 
     plt.tight_layout()
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight') # transparent=True
     logger.info(f"  Plot saved: {output_file}")
     plt.close()
 
