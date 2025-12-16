@@ -40,7 +40,7 @@ COMPPS_PARAMS = {
         'Gmax': 10.0,
         'kTbb': 0.01,         # Typical disk seed photons
         'tau_y': 0.25,       # Median optical depth (slab geometry)
-        'geom': 1,         # approximate treatment of radiative transfer using escape probability for a sphere
+        'geom': 1,         # Slab geometry
         'HovR_cyl': 1.0,
         'cosIncl': 0.5,
         'cov_frac': 1.0,
@@ -401,6 +401,29 @@ COMPPS_PARAMS = {
         'Fe_ab_re': 1.0,
         'Me_ab': 1.0,
         'xi': 100.0,
+        'Tdisk': 30000.0,
+        'Betor10': -10.0,
+        'Rin': 6.01,
+        'Rout': 100.0,
+        'Redshift': 0.0,
+    },
+
+    # 1. Typical AGN corona (Ricci et al. 2018 median values, slab geometry)
+    'radiative_transfer': {
+        'kTe': 105.0,        # Median observed value (Ricci+ 2018)
+        'EleIndex': 2.0,     # Not used for Maxwellian
+        'Gmin': -1.0,        # Maxwellian distribution
+        'Gmax': 10.0,
+        'kTbb': 0.01,         # Typical disk seed photons
+        'tau_y': 0.25,       # Median optical depth (slab geometry)
+        'geom': 0,         # approximate treatment of radiative transfer using escape probability for a sphere
+        'HovR_cyl': 1.0,
+        'cosIncl': 0.5,
+        'cov_frac': 1.0,
+        'rel_refl': 0,
+        'Fe_ab_re': 1.0,
+        'Me_ab': 1.0,
+        'xi': 0,         # No ionization
         'Tdisk': 30000.0,
         'Betor10': -10.0,
         'Rin': 6.01,

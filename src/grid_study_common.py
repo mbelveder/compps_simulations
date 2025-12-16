@@ -376,7 +376,7 @@ def extract_results_for_plotting(fit_results, kTe_values, tau_values, logger):
 
 def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
                  fit_energy_range: List, tau_mode: str = 'positive',
-                 rel_refl: float = None):
+                 rel_refl: float = None, show_error_bars: bool = False):
     """
     Create plot of photon index vs tau_y for different kTe values.
 
@@ -394,6 +394,8 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
         'positive' for optical depth mode, 'negative' for Compton y-parameter mode
     rel_refl : float, optional
         If provided, include rel_refl value in title (for rel_refl studies)
+    show_error_bars : bool, optional
+        If True, plot error bars on data points (default: False)
     """
     logger.info("")
     logger.info("=" * 70)
@@ -402,7 +404,7 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
 
     plt.style.use('default')
     plt.rcParams['figure.figsize'] = (10, 7)
-    plt.rcParams['font.size'] = 10
+    plt.rcParams['font.size'] = 14
 
     _, ax = plt.subplots(figsize=(7, 7))
     colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(results_by_kTe)))
@@ -436,41 +438,44 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
                 label=f'kTe = {kTe:.0f} keV'
             )
 
-            # err_neg = np.array(data['gamma_err_neg'])
-            # err_pos = np.array(data['gamma_err_pos'])
+            if show_error_bars:
+                err_neg = np.array(data['gamma_err_neg'])
+                err_pos = np.array(data['gamma_err_pos'])
 
-            # ax.errorbar(
-            #     tau, gamma,
-            #     yerr=[err_neg, err_pos],
-            #     marker='o',
-            #     markersize=3,
-            #     linestyle='-',
-            #     linewidth=2,
-            #     capsize=5,
-            #     capthick=2,
-            #     label=f'kTe = {kTe:.0f} keV',
-            #     color=color,
-            #     ecolor=color,
-            #     alpha=0.8
-            # )
+                ax.errorbar(
+                    tau, gamma,
+                    yerr=[err_neg, err_pos],
+                    marker='o',
+                    markersize=3,
+                    linestyle='',
+                    linewidth=2,
+                    capsize=5,
+                    capthick=2,
+                    color=color,
+                    ecolor=color,
+                    alpha=0.8
+                )
         else:
             logger.warning(f"  kTe = {kTe:.0f} keV: No data points to plot")
 
     # Update x-axis label based on tau_mode
     if tau_mode == 'negative':
-        ax.set_xlabel(r'Compton y-parameter (4 × Θ × τ)', fontsize=14)
-        title_x_label = 'Compton y-parameter'
-        ax.axvline(1, color='k', alpha=.3)
+        ax.set_xlabel(
+            r'Compton y-parameter' + r' ($4\tau\frac{k_B T_e}{m_e c^2}$)',
+            fontsize=16
+        )
+        title_x_label = 'Compton\ y-parameter'
+        # ax.axvline(1, color='k', alpha=.3)
     else:
         ax.set_xlabel(r'Optical Depth ($\tau_y$)', fontsize=14)
         title_x_label = 'Optical Depth'
 
-    ax.set_ylabel(r'Photon Index ($\Gamma$, tbabs*po)', fontsize=14)
+    ax.set_ylabel(r'Photon Index ($\Gamma$, tbabs*po)', fontsize=16)
     base_params = COMPPS_PARAMS[base_scenario_name]
-    kTbb = base_params.get('kTbb', 'UNKNOWN')
+    # kTbb = base_params.get('kTbb', 'UNKNOWN')
     base_rel_refl = base_params.get('rel_refl', 'UNKNOWN')
-    geom = base_params.get('geom', 'UNKNOWN')
-    cosIncl = base_params.get('cosIncl', 'UNKNOWN')
+    # geom = base_params.get('geom', 'UNKNOWN')
+    # cosIncl = base_params.get('cosIncl', 'UNKNOWN')
 
     # Build title with optional rel_refl override
     if rel_refl is not None:
@@ -479,22 +484,23 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
         title_rel_refl = base_rel_refl
 
     title = (
-        f'Photon Index vs {title_x_label}\n'
-        f'geom: {geom}, rel_refl: {title_rel_refl}, '
-        f'kTbb: {kTbb} keV, cosIncl: {cosIncl}\n'
-        fr'$\bf{{Fitting\ energy\ range}}$: '
-        f'{fit_energy_range[0]:.1f}–{fit_energy_range[1]:.1f} keV'
+        '\n\n\n'
+        # fr'$\bf{{Photon\ Index\ vs\ {title_x_label}}}$'
+        # f'\ngeom: {geom}, rel_refl: {title_rel_refl}, '
+        # f'kTbb: {kTbb} keV, cosIncl: {cosIncl}\n'
+        # r'$\mathtt{tbabs*po}$' + ' fitting energy range: '
+        # f'{fit_energy_range[0]:.1f}–{fit_energy_range[1]:.1f} keV'
     )
     ax.set_title(title, fontsize=16, pad=20)
     ax.legend(fontsize=12, frameon=True)
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.axhline(1.3, alpha=0.6, linestyle='--', color='k')
 
-    ax.set_xlim(0.1, 0.7)
+    ax.set_xlim(0.1, 1)
     ax.set_ylim(0, 4.5)
 
     plt.tight_layout()
-    plt.savefig(output_file, dpi=300, bbox_inches='tight') # transparent=True
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')  # transparent=True
     logger.info(f"  Plot saved: {output_file}")
     plt.close()
 

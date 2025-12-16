@@ -158,6 +158,11 @@ def main():
         action='store_true',
         help='Enable verbose (DEBUG) logging'
     )
+    parser.add_argument(
+        '--show-error-bars',
+        action='store_true',
+        help='Show error bars on data points in the plot (default: False)'
+    )
 
     args = parser.parse_args()
 
@@ -315,7 +320,8 @@ def main():
         plot_results(
             results_by_kTe, plot_file, args.scenario, logger,
             fit_energy_range=args.energy_range,
-            tau_mode=tau_mode, rel_refl=rel_refl
+            tau_mode=tau_mode, rel_refl=rel_refl,
+            show_error_bars=args.show_error_bars
             )
 
         # Update metadata
