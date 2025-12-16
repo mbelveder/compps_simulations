@@ -256,6 +256,11 @@ def main():
         action='store_true',
         help='Generate model plots from .xcm files (grouped by kTe)'
     )
+    parser.add_argument(
+        '--show-error-bars',
+        action='store_true',
+        help='Show error bars on data points in the plot (default: False)'
+    )
 
     args = parser.parse_args()
 
@@ -380,7 +385,8 @@ def main():
     plot_file = run_dir / "photon_index_vs_tau.png"
     plot_results(
         results_by_kTe, plot_file, args.scenario, logger,
-        fit_energy_range=list(args.energy_range), tau_mode=tau_mode
+        fit_energy_range=list(args.energy_range), tau_mode=tau_mode,
+        show_error_bars=args.show_error_bars
         )
 
     logger.info("")
