@@ -472,10 +472,10 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
 
     ax.set_ylabel(r'Photon Index ($\Gamma$, tbabs*po)', fontsize=16)
     base_params = COMPPS_PARAMS[base_scenario_name]
-    # kTbb = base_params.get('kTbb', 'UNKNOWN')
+    kTbb = base_params.get('kTbb', 'UNKNOWN')
     base_rel_refl = base_params.get('rel_refl', 'UNKNOWN')
-    # geom = base_params.get('geom', 'UNKNOWN')
-    # cosIncl = base_params.get('cosIncl', 'UNKNOWN')
+    geom = base_params.get('geom', 'UNKNOWN')
+    cosIncl = base_params.get('cosIncl', 'UNKNOWN')
 
     # Build title with optional rel_refl override
     if rel_refl is not None:
@@ -484,12 +484,12 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
         title_rel_refl = base_rel_refl
 
     title = (
-        '\n\n\n'
-        # fr'$\bf{{Photon\ Index\ vs\ {title_x_label}}}$'
-        # f'\ngeom: {geom}, rel_refl: {title_rel_refl}, '
-        # f'kTbb: {kTbb} keV, cosIncl: {cosIncl}\n'
-        # r'$\mathtt{tbabs*po}$' + ' fitting energy range: '
-        # f'{fit_energy_range[0]:.1f}–{fit_energy_range[1]:.1f} keV'
+        # '\n\n\n'
+        fr'$\bf{{Photon\ Index\ vs\ {title_x_label}}}$'
+        f'\ngeom: {geom}, rel_refl: {title_rel_refl}, '
+        f'kTbb: {kTbb} keV, cosIncl: {cosIncl}\n'
+        r'$\mathtt{tbabs*po}$' + ' fitting energy range: '
+        f'{fit_energy_range[0]:.1f}–{fit_energy_range[1]:.1f} keV'
     )
     ax.set_title(title, fontsize=16, pad=20)
     ax.legend(fontsize=12, frameon=True)
@@ -497,7 +497,7 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
     ax.axhline(1.3, alpha=0.6, linestyle='--', color='k')
 
     ax.set_xlim(0.1, 1)
-    ax.set_ylim(0, 4.5)
+    ax.set_ylim(0, 4)
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')  # transparent=True
