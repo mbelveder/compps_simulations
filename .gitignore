@@ -40,7 +40,7 @@ poetry.lock
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
+# *.ipynb
 
 # Data directories (generated files)
 data/simulated/*.pha
