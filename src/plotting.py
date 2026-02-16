@@ -19,7 +19,7 @@ from .utils import ChangeDir
 from config.parameters import get_scenario_number_map
 
 try:
-    from xspec import AllData, AllModels, Xset, Plot
+    from xspec import AllData, AllModels, Xset, Plot, Model
     XSPEC_AVAILABLE = True
 except ImportError:
     XSPEC_AVAILABLE = False
@@ -949,7 +949,7 @@ class SpectrumPlotter:
 def plot_compps_models_by_kte(spectra_dir: str,
                               output_dir: str,
                               energy_range: List[float],
-                              xspec_plt_en_range: str = "0.1 50 1000 log",
+                              xspec_plt_en_range: str = "0.01 50 1000 log",
                               logger=None) -> List[str]:
     """
     Plot CompPS model spectra from .xcm files, grouped by kTe value.
@@ -1054,7 +1054,7 @@ def plot_compps_models_by_kte(spectra_dir: str,
                 logger.info(f"  Plotting kTe = {kTe:.0f} keV ({len(tau_files)} tau values)")
 
             # Create figure
-            fig, ax = plt.subplots(figsize=(10, 7))
+            _, ax = plt.subplots(figsize=(8, 5))
 
             # Use colormap for different tau values
             colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(tau_files)))
@@ -1080,8 +1080,9 @@ def plot_compps_models_by_kte(spectra_dir: str,
                     tau_label = f"y = {-tau:.2f}"
 
                     # Plot model
-                    ax.plot(en, total, label=tau_label, alpha=0.8, color=color,
-                           lw=2, ls='-')
+                    ax.plot(
+                        en, total, alpha=0.8, color=color, lw=2, ls='-' #, label=tau_label
+                        )
 
                 except Exception as e:
                     if logger:
@@ -1130,6 +1131,29 @@ def plot_compps_models_by_kte(spectra_dir: str,
                     if logger:
                         logger.warning(f"    Could not extract model parameters: {e}")
 
+            # Create a separate Black Body model
+            AllModels.clear()
+            Model('bbody')
+
+            # Set the energy range for plotting
+            AllModels.setEnergies('0.01 50 1000 log')
+
+            # Get the black body component
+            bb = AllModels(1).bbody
+
+            # Set black body parameters
+            # kT is in keV, norm is the normalization
+            bb.kT = 1e-2  # Temperature in keV
+            bb.norm = 0.12e-4  # Normalization
+
+            # Generate the plot data
+            Plot("eemo")
+
+            # Extract energy and flux
+            en_bb = list(map(float, Plot.x()))
+            flux_bb = list(map(float, Plot.model()))
+            ax.plot(en_bb, flux_bb, label='Black Body', alpha=.8, color='red', lw=2, ls='-')
+
             # Format plot
             ax.set_xlabel('Energy (keV)', fontsize=14)
             ax.set_ylabel('Model Flux', fontsize=14)
@@ -1137,7 +1161,8 @@ def plot_compps_models_by_kte(spectra_dir: str,
             ax.set_title(
                 (
                     f'CompPS Models: kTe = {kTe:.0f} keV, '
-                    fr'$\bf{{rel\_refl}}$: {rel_refl}'
+                    f'rel_refl: {rel_refl}'
+                    '\ny-parameter from 0.1 to 1.5'
                 ),
                 fontsize=16, pad=20
             )
@@ -1145,8 +1170,11 @@ def plot_compps_models_by_kte(spectra_dir: str,
             ax.set_yscale('log')
             ax.grid(True, alpha=0.3)
             ax.legend(fontsize=10, loc='upper left', frameon=True)
-            ax.axvline(2, color='k', ls='--')
-            ax.axvline(7, color='k', ls='--')
+            # ax.axvline(2, color='k', ls='--')
+            # ax.axvline(7, color='k', ls='--')
+
+            ax.set_xlim(1e-2, 50)
+            ax.set_ylim(1e-5, 1e-3)
 
             # Save plot
             output_file = plots_dir / f"model_plot_kTe{kTe:.0f}.png"

@@ -350,7 +350,7 @@ def main():
             spectra_dir=str(spectra_dir),
             output_dir=str(run_dir),
             energy_range=args.energy_range,
-            xspec_plt_en_range="0.1 50 1000 log",
+            xspec_plt_en_range="0.01 50 1000 log",
             logger=logger
         )
 
