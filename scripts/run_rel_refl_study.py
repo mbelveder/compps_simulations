@@ -269,8 +269,8 @@ def main():
             'results_dir': f"rel_refl_{rel_refl}"
         }
 
-        # Run simulations
-        spectrum_files = run_simulations(
+        # Run simulations (discard amplification factors — not used in this study)
+        spectrum_files, _ = run_simulations(
             grid_params,
             args.arf,
             args.rmf,

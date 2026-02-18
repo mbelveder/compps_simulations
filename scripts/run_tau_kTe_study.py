@@ -27,7 +27,9 @@ from src.grid_study_common import (
     run_simulations,
     run_fits,
     extract_results_for_plotting,
+    extract_amplification_for_plotting,
     plot_results,
+    plot_amplification_vs_tau,
     save_results_csv,
     print_results_table,
     format_tau_for_filename,
@@ -330,7 +332,7 @@ def main():
                       run_timestamp, logger)
 
     # Run simulations (output to run-specific spectra directory)
-    spectrum_files = run_simulations(
+    spectrum_files, amplification_factors = run_simulations(
         grid_params,
         args.arf,
         args.rmf,
@@ -374,20 +376,35 @@ def main():
         logger
     )
 
+    # Extract amplification factors organized by kTe
+    amp_by_kTe = extract_amplification_for_plotting(
+        amplification_factors,
+        args.kTe_values,
+        args.tau_values,
+        logger
+    )
+
     # Print results table
     print_results_table(results_by_kTe, logger)
 
     # Save results to CSV (in run directory)
     csv_file = run_dir / "results.csv"
-    save_results_csv(results_by_kTe, csv_file, logger)
+    save_results_csv(results_by_kTe, csv_file, logger, amp_by_kTe=amp_by_kTe)
 
-    # Create plot (in run directory)
+    # Create photon index plot (in run directory)
     plot_file = run_dir / "photon_index_vs_tau.png"
     plot_results(
         results_by_kTe, plot_file, args.scenario, logger,
         fit_energy_range=list(args.energy_range), tau_mode=tau_mode,
         show_error_bars=args.show_error_bars
         )
+
+    # Create amplification factor plot (in run directory)
+    amp_plot_file = run_dir / "amplification_vs_tau.png"
+    plot_amplification_vs_tau(
+        amp_by_kTe, amp_plot_file, args.scenario, logger,
+        fit_energy_range=list(args.energy_range), tau_mode=tau_mode
+    )
 
     logger.info("")
     logger.info("=" * 70)
@@ -402,6 +419,7 @@ def main():
     logger.info(f"  Metadata: {run_dir / 'run_metadata.json'}")
     logger.info(f"  Results CSV: {csv_file}")
     logger.info(f"  Plot: {plot_file}")
+    logger.info(f"  Amplification plot: {amp_plot_file}")
     if args.plot_models:
         logger.info(f"  Model plots: {run_dir / 'plots'}/")
     logger.info(f"  Spectra: {spectra_dir}/")

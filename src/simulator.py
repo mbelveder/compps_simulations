@@ -120,7 +120,8 @@ class SpectrumSimulator:
                          compps_params: Dict[str, float],
                          exposure: float = 10000.0,
                          norm: float = 1.0,
-                         background: Optional[str] = None) -> str:
+                         background: Optional[str] = None
+                         ) -> Tuple[str, Optional[float]]:
         """
         Simulate a single spectrum with CompPS model.
 
@@ -172,6 +173,13 @@ class SpectrumSimulator:
             background=background
         )
 
+        # Compute amplification factor while CompPS model is still active
+        amplification_factor = self.xspec.compute_amplification_factor(model)
+        if amplification_factor is not None:
+            print(f"  Amplification factor: A = {amplification_factor:.4f}")
+        else:
+            print("  Amplification factor: computation failed")
+
         # Group the spectrum for fitting
         grouped_file = self.group_spectrum(
             spectrum_file=str(output_file),
@@ -191,7 +199,8 @@ class SpectrumSimulator:
             'exposure': exposure,
             'normalization': norm,
             'compps_parameters': compps_params,
-            'background': background
+            'background': background,
+            'amplification_factor': amplification_factor,
         }
 
         # Save metadata to JSON
@@ -203,7 +212,7 @@ class SpectrumSimulator:
         self.simulation_log.append(metadata)
 
         print(f"  Simulation complete: {grouped_file}")
-        return grouped_file
+        return grouped_file, amplification_factor
 
     def simulate_multiple(self,
                          scenarios: Dict[str, Dict[str, float]],
@@ -234,7 +243,7 @@ class SpectrumSimulator:
         for i, (scenario_name, params) in enumerate(scenarios.items(), 1):
             print(f"\n[{i}/{len(scenarios)}] Scenario: {scenario_name}")
             try:
-                spectrum_file = self.simulate_spectrum(
+                spectrum_file, _ = self.simulate_spectrum(
                     scenario_name=scenario_name,
                     compps_params=params,
                     exposure=exposure,
