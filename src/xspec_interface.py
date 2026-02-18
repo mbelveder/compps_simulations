@@ -8,7 +8,10 @@ through the PyXspec Python bindings.
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 try:
     import xspec
@@ -263,7 +266,7 @@ class XspecSession:
             xspec.Fit.error("1-10")
             xspec.Fit.error("2.706 2")  # 2.706 = 90% confidence, 2 = PhoIndex parameter
         except Exception as e:
-            print(f"Warning: PhoIndex error calculation failed: {e}")
+            logger.warning(f"PhoIndex error calculation failed: {e!r}")
 
         # Extract fit results
         results = {
@@ -358,6 +361,15 @@ class XspecSession:
         original_tau_y = None
         tau_y_param = None
         try:
+
+            # Clear loaded spectrum so calcFlux stores result in AllModels(1).flux
+            # (when AllData is non-empty, calcFlux stores in AllData(1).flux instead)
+            xspec.AllData.clear()
+
+            # Set fine energy grid covering the seed photon peak (kTbb can be ~0.01 keV,
+            # peak at ~3*kTbb ~ 0.03 keV). Use 0.001-1000 keV, 5000 log bins.
+            xspec.AllModels.setEnergies("0.001 1000 5000 log")
+
             # Comptonized flux (full model, current tau_y)
             xspec.AllModels.calcFlux(energy_str)
             flux_comptonized = xspec.AllModels(1).flux[0]
@@ -377,18 +389,44 @@ class XspecSession:
             tau_y_param.values = [original_tau_y, 0.01, -4.0, -3.0, 3.0, 4.0]
 
             if flux_seed <= 0:
+                logger.warning(
+                    "Amplification factor computation failed: "
+                    f"flux_seed={flux_seed:.4e} (<= 0), "
+                    f"flux_comptonized={flux_comptonized:.4e}, "
+                    f"energy_range={energy_min}-{energy_max} keV, "
+                    f"seed_tau_y={seed_tau_y}, original_tau_y={original_tau_y}"
+                )
                 return None
-            return flux_comptonized / flux_seed
 
-        except Exception:
+            A = flux_comptonized / flux_seed
+            logger.info(
+                "Amplification factor computation succeeded: "
+                f"A={A:.4f}, "
+                f"flux_comptonized={flux_comptonized:.4e}, "
+                f"flux_seed={flux_seed:.4e}, "
+                f"energy_range={energy_min}-{energy_max} keV, "
+                f"seed_tau_y={seed_tau_y}, original_tau_y={original_tau_y}"
+            )
+            return A
+
+        except Exception as e:
+            logger.error(
+                "Amplification factor computation raised an exception: "
+                f"{e!r}, "
+                f"energy_range={energy_min}-{energy_max} keV, "
+                f"seed_tau_y={seed_tau_y}, original_tau_y={original_tau_y}"
+            )
             # Attempt restore even on failure
             if tau_y_param is not None and original_tau_y is not None:
                 try:
                     tau_y_param.values = [
                         original_tau_y, 0.01, -4.0, -3.0, 3.0, 4.0
                     ]
-                except Exception:
-                    pass
+                except Exception as restore_error:
+                    logger.error(
+                        "Failed to restore original tau_y after exception: "
+                        f"{restore_error!r}"
+                    )
             return None
 
     def save_xcm_file(self, filename: str) -> None:
@@ -431,9 +469,9 @@ def validate_response_files(arf_file: str, rmf_file: str) -> bool:
     rmf_exists = Path(rmf_file).exists()
 
     if not arf_exists:
-        print(f"Error: ARF file not found: {arf_file}")
+        logger.error(f"ARF file not found: {arf_file}")
     if not rmf_exists:
-        print(f"Error: RMF file not found: {rmf_file}")
+        logger.error(f"RMF file not found: {rmf_file}")
 
     return arf_exists and rmf_exists
 

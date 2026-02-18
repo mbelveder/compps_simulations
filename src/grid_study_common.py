@@ -82,11 +82,11 @@ def setup_logging(verbose: bool = False, log_file: Path = None):
         Configured logger instance
     """
     level = logging.DEBUG if verbose else logging.INFO
-    
-    # Create logger
-    logger = logging.getLogger(__name__)
+
+    # Configure root logger so all modules (e.g. src.xspec_interface) share handlers
+    logger = logging.getLogger()
     logger.setLevel(level)
-    
+
     # Create formatter
     formatter = logging.Formatter(
         '%(asctime)s | %(levelname)-8s | %(message)s',
@@ -102,7 +102,7 @@ def setup_logging(verbose: bool = False, log_file: Path = None):
     # File handler (if log_file provided)
     if log_file is not None:
         file_handler = logging.FileHandler(log_file, mode='w')
-        file_handler.setLevel(logging.DEBUG)  # Always DEBUG for file
+        file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     
