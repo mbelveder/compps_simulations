@@ -176,6 +176,7 @@ def run_simulations(grid_params, arf_file, rmf_file, spectra_dir,
         output_dir=str(spectra_dir)
     )
     spectrum_files = {}
+    amplification_factors = {}
     failed_simulations = []
 
     total = len(grid_params)
@@ -185,7 +186,7 @@ def run_simulations(grid_params, arf_file, rmf_file, spectra_dir,
         logger.info(f"         tau_y = {params['tau_y']:.2f}")
 
         try:
-            grouped_spectrum = simulator.simulate_spectrum(
+            grouped_spectrum, amp_factor = simulator.simulate_spectrum(
                 scenario_name=scenario_name,
                 compps_params=params,
                 exposure=exposure,
@@ -193,6 +194,7 @@ def run_simulations(grid_params, arf_file, rmf_file, spectra_dir,
             )
 
             spectrum_files[scenario_name] = grouped_spectrum
+            amplification_factors[scenario_name] = amp_factor
             logger.info(f"         ✓ Output: {Path(grouped_spectrum).name}")
 
         except Exception as e:
@@ -209,7 +211,7 @@ def run_simulations(grid_params, arf_file, rmf_file, spectra_dir,
     if failed_simulations:
         logger.warning(f"  Failed scenarios: {', '.join(failed_simulations)}")
 
-    return spectrum_files
+    return spectrum_files, amplification_factors
 
 
 def run_fits(spectrum_files, fits_dir, energy_range, logger):
@@ -505,6 +507,156 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
     plt.close()
 
 
+def extract_amplification_for_plotting(amplification_factors, kTe_values,
+                                       tau_values, logger):
+    """
+    Extract amplification factors organized by kTe for plotting.
+
+    Parameters
+    ----------
+    amplification_factors : dict
+        Dictionary of {scenario_name: amplification_factor}
+    kTe_values : list
+        List of kTe values
+    tau_values : list
+        List of tau_y values
+    logger : logging.Logger
+        Logger instance
+
+    Returns
+    -------
+    dict
+        {kTe: {'tau': [...], 'amplification': [...]}}
+    """
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("PHASE 3b: EXTRACTING AMPLIFICATION FACTORS FOR PLOTTING")
+    logger.info("=" * 70)
+
+    amp_by_kTe = {}
+
+    for kTe in kTe_values:
+        amp_by_kTe[kTe] = {'tau': [], 'amplification': []}
+        logger.info(f"  kTe = {kTe:.0f} keV:")
+
+        for tau in tau_values:
+            tau_str = format_tau_for_filename(tau)
+            scenario_name = f"grid_kTe{kTe:.0f}_tau{tau_str}"
+
+            if scenario_name in amplification_factors:
+                amp = amplification_factors[scenario_name]
+                if amp is not None:
+                    amp_by_kTe[kTe]['tau'].append(tau)
+                    amp_by_kTe[kTe]['amplification'].append(amp)
+                    logger.info(f"    tau={tau:.2f}: A={amp:.4f}")
+                else:
+                    logger.warning(f"    tau={tau:.2f}: A=None (computation failed)")
+            else:
+                logger.warning(f"    tau={tau:.2f}: MISSING from amplification_factors")
+
+    return amp_by_kTe
+
+
+def plot_amplification_vs_tau(amp_by_kTe, output_file, base_scenario_name,
+                               logger, fit_energy_range, tau_mode='positive'):
+    """
+    Create plot of Compton amplification factor A vs tau/y-parameter.
+
+    Parameters
+    ----------
+    amp_by_kTe : dict
+        {kTe: {'tau': [...], 'amplification': [...]}}
+    output_file : Path
+        Output plot filename
+    base_scenario_name : str
+        Name of base scenario (for title metadata lookup)
+    logger : logging.Logger
+        Logger instance
+    fit_energy_range : list
+        Energy range used for fitting [min, max] in keV
+    tau_mode : str
+        'positive' for optical depth, 'negative' for Compton y-parameter
+    """
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("PHASE 5: GENERATING AMPLIFICATION PLOT")
+    logger.info("=" * 70)
+
+    plt.style.use('default')
+    plt.rcParams['figure.figsize'] = (10, 7)
+    plt.rcParams['font.size'] = 14
+
+    _, ax = plt.subplots(figsize=(7, 7))
+    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(amp_by_kTe)))
+
+    for (kTe, data), color in zip(sorted(amp_by_kTe.items()), colors):
+        if len(data['tau']) < 2:
+            logger.warning(f"  kTe = {kTe:.0f} keV: not enough data points to plot")
+            continue
+
+        amp = np.array(data['amplification'])
+
+        if tau_mode == 'negative':
+            tau = -np.array(data['tau'])
+        else:
+            tau = np.array(data['tau'])
+
+        logger.info(f"  Plotting kTe = {kTe:.0f} keV: {len(tau)} data points")
+
+        degree = min(3, len(tau) - 1)
+        coeffs = np.polyfit(tau, amp, degree)
+        poly = np.poly1d(coeffs)
+
+        tau_smooth = np.linspace(tau.min(), tau.max(), 300)
+        amp_smooth = poly(tau_smooth)
+
+        ax.plot(
+            tau_smooth, amp_smooth,
+            marker=None,
+            lw=3,
+            color=color,
+            alpha=0.8,
+            label=f'kTe = {kTe:.0f} keV'
+        )
+        ax.scatter(tau, amp, color=color, s=20, alpha=0.6, zorder=5)
+
+    if tau_mode == 'negative':
+        ax.set_xlabel(
+            r'Compton y-parameter' + r' ($4\tau\frac{k_B T_e}{m_e c^2}$)',
+            fontsize=16
+        )
+        title_x_label = 'Compton\ y-parameter'
+    else:
+        ax.set_xlabel(r'Optical Depth ($\tau_y$)', fontsize=14)
+        title_x_label = 'Optical Depth'
+
+    ax.set_ylabel(
+        r'Amplification Factor ($A = F_{\rm comp}/F_{\rm seed}$)',
+        fontsize=16
+    )
+
+    base_params = COMPPS_PARAMS[base_scenario_name]
+    kTbb = base_params.get('kTbb', 'UNKNOWN')
+    geom = base_params.get('geom', 'UNKNOWN')
+    cosIncl = base_params.get('cosIncl', 'UNKNOWN')
+    rel_refl = base_params.get('rel_refl', 'UNKNOWN')
+
+    title = (
+        fr'$\bf{{Amplification\ Factor\ vs\ {title_x_label}}}$'
+        f'\ngeom: {geom}, rel_refl: {rel_refl}, '
+        f'kTbb: {kTbb} keV, cosIncl: {cosIncl}\n'
+        r'$A = F_{\rm 0.001-1000\,keV}^{\rm CompPS} / F_{\rm 0.001-1000\,keV}^{\rm seed}$'
+    )
+    ax.set_title(title, fontsize=14, pad=20)
+    ax.legend(fontsize=12, frameon=True)
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    logger.info(f"  Amplification plot saved: {output_file}")
+    plt.close()
+
+
 def print_results_table(results_by_kTe, logger):
     """
     Print a formatted table of results.
@@ -548,7 +700,7 @@ def print_results_table(results_by_kTe, logger):
         logger.info(separator)
 
 
-def save_results_csv(results_by_kTe, output_file, logger):
+def save_results_csv(results_by_kTe, output_file, logger, amp_by_kTe=None):
     """
     Save results to CSV file.
 
@@ -560,15 +712,42 @@ def save_results_csv(results_by_kTe, output_file, logger):
         Output CSV filename
     logger : logging.Logger
         Logger instance
+    amp_by_kTe : dict, optional
+        Amplification factors organized by kTe. When provided, a 6th column
+        'amplification_factor' is added. When None, writes 5-column format.
     """
     with open(output_file, 'w') as f:
-        f.write("kTe,tau_y,gamma,gamma_err_neg,gamma_err_pos\n")
+        if amp_by_kTe is not None:
+            f.write("kTe,tau_y,gamma,gamma_err_neg,gamma_err_pos,"
+                    "amplification_factor\n")
+        else:
+            f.write("kTe,tau_y,gamma,gamma_err_neg,gamma_err_pos\n")
+
         for kTe in sorted(results_by_kTe.keys()):
             data = results_by_kTe[kTe]
-        for i in range(len(data['tau'])):
-            f.write(f"{kTe},{data['tau'][i]},{data['gamma'][i]},"
-                    f"{data['gamma_err_neg'][i]},"
-                    f"{data['gamma_err_pos'][i]}\n")
+            for i in range(len(data['tau'])):
+                tau = data['tau'][i]
+                amp_val = ''
+                if amp_by_kTe is not None and kTe in amp_by_kTe:
+                    amp_data = amp_by_kTe[kTe]
+                    for j, at in enumerate(amp_data['tau']):
+                        if abs(at - tau) < 1e-9:
+                            amp_val = amp_data['amplification'][j]
+                            break
+
+                if amp_by_kTe is not None:
+                    f.write(
+                        f"{kTe},{tau},{data['gamma'][i]},"
+                        f"{data['gamma_err_neg'][i]},"
+                        f"{data['gamma_err_pos'][i]},"
+                        f"{amp_val}\n"
+                    )
+                else:
+                    f.write(
+                        f"{kTe},{tau},{data['gamma'][i]},"
+                        f"{data['gamma_err_neg'][i]},"
+                        f"{data['gamma_err_pos'][i]}\n"
+                    )
 
     logger.info(f"  Results CSV saved: {output_file}")
 

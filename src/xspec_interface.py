@@ -320,6 +320,77 @@ class XspecSession:
         flux_err = xspec.AllData(1).flux[1]
         return flux, flux_err
 
+    def compute_amplification_factor(
+        self,
+        model,
+        seed_tau_y: float = -1e-20,
+        energy_min: float = 0.001,
+        energy_max: float = 1000.0
+    ) -> Optional[float]:
+        """
+        Compute Compton amplification factor A = flux_comptonized / flux_seed.
+
+        Must be called after generate_fake_spectrum() while the CompPS model
+        is still active. Temporarily sets tau_y to near-zero to isolate seed
+        photons, then restores the original value.
+
+        Uses AllModels(1).flux[0] (intrinsic model flux) rather than
+        AllData(1).flux[0] (convolved instrument flux).
+
+        Parameters
+        ----------
+        model : xspec.Model
+            The active CompPS model.
+        seed_tau_y : float
+            tau_y for the seed-photon run. Negative = Compton y-parameter mode
+            with effectively zero scattering (default: -1e-20).
+        energy_min : float
+            Lower bound of flux integration in keV (default: 0.001).
+        energy_max : float
+            Upper bound of flux integration in keV (default: 1000.0).
+
+        Returns
+        -------
+        float or None
+            Amplification factor A, or None if computation fails.
+        """
+        energy_str = f"{energy_min} {energy_max}"
+        original_tau_y = None
+        tau_y_param = None
+        try:
+            # Comptonized flux (full model, current tau_y)
+            xspec.AllModels.calcFlux(energy_str)
+            flux_comptonized = xspec.AllModels(1).flux[0]
+
+            # Save original tau_y
+            tau_y_param = model.compPS.tau_y
+            original_tau_y = tau_y_param.values[0]
+
+            # Set near-zero tau_y → seed photons only
+            tau_y_param.values = [seed_tau_y, 0.01, -4.0, -3.0, 3.0, 4.0]
+
+            # Seed flux
+            xspec.AllModels.calcFlux(energy_str)
+            flux_seed = xspec.AllModels(1).flux[0]
+
+            # Restore original tau_y
+            tau_y_param.values = [original_tau_y, 0.01, -4.0, -3.0, 3.0, 4.0]
+
+            if flux_seed <= 0:
+                return None
+            return flux_comptonized / flux_seed
+
+        except Exception:
+            # Attempt restore even on failure
+            if tau_y_param is not None and original_tau_y is not None:
+                try:
+                    tau_y_param.values = [
+                        original_tau_y, 0.01, -4.0, -3.0, 3.0, 4.0
+                    ]
+                except Exception:
+                    pass
+            return None
+
     def save_xcm_file(self, filename: str) -> None:
         """
         Save current XSPEC model state to an .xcm file.
