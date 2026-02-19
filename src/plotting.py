@@ -1143,13 +1143,13 @@ def plot_compps_models_by_kte(spectra_dir: str,
 
             # Format plot
             ax.set_xlabel('Energy (keV)', fontsize=14)
-            ax.set_ylabel('Model Flux', fontsize=14)
+            ax.set_ylabel('Model Flux ' + r'($\nu f_{\nu}$)', fontsize=14)
             rel_refl = params['rel_refl']
             ax.set_title(
                 (
                     f'CompPS Models: kTe = {kTe:.0f} keV, '
                     f'rel_refl: {rel_refl}'
-                    '\ny-parameter from 1e-20 to 1.5'
+                    '\ny-parameter from 1e-20 to 2'
                 ),
                 fontsize=16, pad=20
             )
@@ -1161,7 +1161,7 @@ def plot_compps_models_by_kte(spectra_dir: str,
             # ax.axvline(7, color='k', ls='--')
 
             ax.set_xlim(3e-3, 2e3)
-            ax.set_ylim(1e-8, 1e-2)
+            ax.set_ylim(1e-8, 5e-2)
 
             # Save plot
             output_file = plots_dir / f"model_plot_kTe{kTe:.0f}.png"

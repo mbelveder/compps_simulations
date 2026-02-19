@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from config.parameters import COMPPS_PARAMS
 from src.simulator import SpectrumSimulator
 from src.fitter import SpectrumFitter
+from scipy.interpolate import CubicSpline
 
 
 def validate_tau_values(tau_values: list, logger) -> str:
@@ -405,7 +406,7 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
     logger.info("=" * 70)
 
     plt.style.use('default')
-    plt.rcParams['figure.figsize'] = (10, 7)
+    plt.rcParams['figure.figsize'] = (10, 5)
     plt.rcParams['font.size'] = 14
 
     _, ax = plt.subplots(figsize=(7, 7))
@@ -424,12 +425,18 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
             logger.info(f"  Plotting kTe = {kTe:.0f} keV: {len(tau)} data points")
 
             # Create smooth curve using polynomial fitting
-            degree = 3  # cubic polynomial
-            coeffs = np.polyfit(tau, gamma, degree)
-            poly = np.poly1d(coeffs)
+            # degree = 4  # polynomial
+            # coeffs = np.polyfit(tau, gamma, degree)
+            # poly = np.poly1d(coeffs)
 
+            # sort_idx = np.argsort(tau)
+
+            # tau_smooth = np.linspace(tau.min(), tau.max(), 300)
+            # gamma_smooth = poly(tau_smooth)
+
+            cs_gamma = CubicSpline(tau, gamma)
             tau_smooth = np.linspace(tau.min(), tau.max(), 300)
-            gamma_smooth = poly(tau_smooth)
+            gamma_smooth = cs_gamma(tau_smooth)
 
             ax.plot(
                 tau_smooth, gamma_smooth,
@@ -494,11 +501,11 @@ def plot_results(results_by_kTe, output_file, base_scenario_name, logger,
         f'{fit_energy_range[0]:.1f}–{fit_energy_range[1]:.1f} keV'
     )
     ax.set_title(title, fontsize=16, pad=20)
-    ax.legend(fontsize=12, frameon=True)
+    ax.legend(fontsize=12, frameon=True, loc='upper left')
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.axhline(1.3, alpha=0.6, linestyle='--', color='k')
 
-    ax.set_xlim(0.1, 1)
+    ax.set_xlim(0.1, 1.5)
     ax.set_ylim(0, 4)
 
     plt.tight_layout()
@@ -583,7 +590,7 @@ def plot_amplification_vs_tau(amp_by_kTe, output_file, base_scenario_name,
     logger.info("=" * 70)
 
     plt.style.use('default')
-    plt.rcParams['figure.figsize'] = (10, 7)
+    plt.rcParams['figure.figsize'] = (10, 5)
     plt.rcParams['font.size'] = 14
 
     _, ax = plt.subplots(figsize=(7, 7))
@@ -603,12 +610,17 @@ def plot_amplification_vs_tau(amp_by_kTe, output_file, base_scenario_name,
 
         logger.info(f"  Plotting kTe = {kTe:.0f} keV: {len(tau)} data points")
 
-        degree = min(3, len(tau) - 1)
-        coeffs = np.polyfit(tau, amp, degree)
-        poly = np.poly1d(coeffs)
+        # degree = min(3, len(tau) - 1)
+        # coeffs = np.polyfit(tau, amp, degree)
+        # poly = np.poly1d(coeffs)
 
+        # tau_smooth = np.linspace(tau.min(), tau.max(), 300)
+        # amp_smooth = poly(tau_smooth)
+
+        sort_idx = np.argsort(tau)
+        cs = CubicSpline(tau[sort_idx], amp[sort_idx])
         tau_smooth = np.linspace(tau.min(), tau.max(), 300)
-        amp_smooth = poly(tau_smooth)
+        amp_smooth = cs(tau_smooth)
 
         ax.plot(
             tau_smooth, amp_smooth,
@@ -648,8 +660,9 @@ def plot_amplification_vs_tau(amp_by_kTe, output_file, base_scenario_name,
         r'$A = F_{\rm 0.001-1000\,keV}^{\rm CompPS} / F_{\rm 0.001-1000\,keV}^{\rm seed}$'
     )
     ax.set_title(title, fontsize=14, pad=20)
-    ax.legend(fontsize=12, frameon=True)
+    ax.legend(fontsize=12, frameon=True, loc='upper left')
     ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_xlim(0.1, 1.5)
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
